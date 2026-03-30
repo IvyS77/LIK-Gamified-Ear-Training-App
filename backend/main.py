@@ -86,7 +86,7 @@ async def update_profile(update: UpdateUser):
     decoded_token = auth.verify_id_token(update.authToken)
     email = decoded_token["email"]
     uid = decoded_token["uid"]
-    req_dict = update.model_dump(exclude_none=True)
+    req_dict = update.model_dump(exclude_none=True, exclude={"authToken"})
     print(req_dict)
 
     db.collection("users").document(uid).update(req_dict)
