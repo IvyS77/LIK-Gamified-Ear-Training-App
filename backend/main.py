@@ -1,5 +1,4 @@
-from typing import Optional
-
+from classes import CreateUser, UpdateUser
 from fastapi import FastAPI
 from dotenv import load_dotenv
 import firebase_admin
@@ -23,17 +22,6 @@ db = firestore.client()
 
 # if (doc.exists): # type: ignore
 #     print(doc.to_dict()) # type: ignore
-
-class CreateProfileRequestBody(BaseModel):
-    firstName: str 
-    lastName: str
-    authToken: str
-
-class UpdateProfileRequestBody(BaseModel):
-    firstName: Optional[str] = None
-    lastName: Optional[str] = None
-    profilePicture: Optional[str] = None
-    authToken: str
 
 app = FastAPI()
 origins = [
@@ -73,8 +61,9 @@ def get_user():
 def read_item(item_id: int, q: str | None = None):
     return {"item_id": item_id, "q": q}
 
+
 @app.post("/create-profile")
-async def create_profile(profile: CreateProfileRequestBody):
+async def create_profile(profile: CreateUser):
     # TODO: validate auth_token here
     decoded_token = auth.verify_id_token(profile.authToken)
     email = decoded_token["email"]
@@ -93,21 +82,12 @@ async def create_profile(profile: CreateProfileRequestBody):
     return "success"
 
 @app.post("/update-profile")
-async def update_profile(update: UpdateProfileRequestBody):
+async def update_profile(update: UpdateUser):
     decoded_token = auth.verify_id_token(update.authToken)
     email = decoded_token["email"]
     uid = decoded_token["uid"]
+    req_dict = update.model_dump(exclude_none=True)
+    print(req_dict)
 
-    new_doc = {}
-
-    if update.firstName != None:
-        new_doc["firstName"] = update.firstName
-
-    if update.lastName != None:
-        new_doc["lastName"] = update.lastName
-
-    if update.profilePicture != None:
-        new_doc["profilePicture"] = update.profilePicture
-
-    db.collection("users").document(uid).update(new_doc)
-    return
+    db.collection("users").document(uid).update(req_dict)
+    return update

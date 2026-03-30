@@ -5,10 +5,13 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { backend } from "@/firebaseConfig";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function Preferences() {
   const router = useRouter();
   const [switches, setSwitches] = useState({ sound: true, haptic: true, listening: true });
+  const [user, profile] = useAuth();
 
   useEffect(() => {
     loadSettings();
@@ -29,6 +32,13 @@ export default function Preferences() {
     setSwitches(updated);
     try {
       await AsyncStorage.setItem("user_prefs", JSON.stringify(updated));
+      const token = await user?.getIdToken();
+      const response = await fetch(`${backend}/update-profile`, {
+        method: "POST",
+        body: JSON.stringify({...switches, authToken: token}),
+        headers: { "Content-type": "application/json" }
+      });
+      console.log(response)
     } catch (e) {
       console.error("Failed to save settings.");
     }

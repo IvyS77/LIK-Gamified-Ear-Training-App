@@ -52,13 +52,16 @@ export default function ProfileScreen() {
       if (update.profilePicture && update.profilePicture !== profile?.profilePicture) {
         const imageId = await uploadImage(update.profilePicture);
         finalUpdate.profilePicture = `https://firebasestorage.googleapis.com/v0/b/ear-training-8f082.firebasestorage.app/o/${imageId}?alt=media`;
+        console.log(imageId)
       }
 
-      await fetch(`${backend}/update-profile`, {
+      const response = await fetch(`${backend}/update-profile`, {
         method: "POST",
         body: JSON.stringify({ ...finalUpdate, authToken: token }),
         headers: { "Content-type": "application/json" }
       });
+      console.log(response)
+      
     } catch (error) {
       console.error(error);
       Alert.alert("Error", "Failed to sync profile changes.");
