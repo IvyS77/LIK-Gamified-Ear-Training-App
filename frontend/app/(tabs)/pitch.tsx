@@ -1,238 +1,375 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, Pressable, StyleSheet, LayoutAnimation, useColorScheme } from 'react-native';
-import { ThemedView } from '@/components/themed-view';
-import { ThemedText } from '@/components/themed-text';
-import { Ionicons } from '@expo/vector-icons'; 
-import * as Haptics from 'expo-haptics';
-import { Audio } from 'expo-av';
+import React, { useMemo } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+  SafeAreaView,
+  StatusBar,
+  useColorScheme,
+  ScrollView,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { useAuth } from '@/hooks/useAuth';
 
-// --- 🎹 PIANO SAMPLES ---
-const NOTE_URLS: Record<string, string> = {
-  'C': 'https://raw.githubusercontent.com/fuhton/piano-mp3/master/piano-mp3/C4.mp3',
-  'D': 'https://raw.githubusercontent.com/fuhton/piano-mp3/master/piano-mp3/D4.mp3',
-  'E': 'https://raw.githubusercontent.com/fuhton/piano-mp3/master/piano-mp3/E4.mp3',
-  'F': 'https://raw.githubusercontent.com/fuhton/piano-mp3/master/piano-mp3/F4.mp3',
-  'G': 'https://raw.githubusercontent.com/fuhton/piano-mp3/master/piano-mp3/G4.mp3',
-  'A': 'https://raw.githubusercontent.com/fuhton/piano-mp3/master/piano-mp3/A4.mp3',
-  'B': 'https://raw.githubusercontent.com/fuhton/piano-mp3/master/piano-mp3/B4.mp3',
-};
+export default function PitchLandingScreen() {
+  const router = useRouter();
+  const isDark = useColorScheme() === 'dark';
 
-const NOTE_OPTIONS = ['C', 'D', 'E', 'F', 'G', 'A', 'B'] as const;
-type Difficulty = 'Easy' | 'Medium' | 'Hard';
+  const [user, profile] = useAuth();
+  const isGuest = !user;
 
-const DIFFICULTY_SECONDS: Record<Difficulty, number> = {
-  Easy: 10, Medium: 6, Hard: 3,
-};
+  const theme = useMemo(() => {
+    const accent = '#58CC02';
 
-let currentSound: Audio.Sound | null = null;
+    const bg = isDark ? '#0F1115' : '#F3F7FF';
+    const card = isDark ? '#171A21' : '#FFFFFF';
+    const text = isDark ? '#FFFFFF' : '#111827';
+    const subText = isDark ? 'rgba(255,255,255,0.72)' : '#6B7280';
+    const border = isDark ? 'rgba(255,255,255,0.10)' : 'rgba(17,24,39,0.08)';
 
-export default function PitchScreen() {
-  const scheme = useColorScheme();
-  const isDark = scheme === 'dark';
+    return {
+      bg,
+      card,
+      text,
+      subText,
+      border,
+      accent,
+      softAccent: isDark ? 'rgba(88,204,2,0.18)' : 'rgba(88,204,2,0.12)',
+      softPanel: isDark ? 'rgba(255,255,255,0.04)' : '#F7FAFF',
 
-  // --- 🎨 SYNCED COLORS FROM PROFILE ---
-  const colors = useMemo(() => ({
-    pageBg: isDark ? "#0B0F14" : "#F5F6FA",
-    cardBg: isDark ? "#121922" : "#FFFFFF",
-    cardBg2: isDark ? "#0F1720" : "#EEF2FF",
-    border: isDark ? "#1F2A37" : "#E2E5EE",
-    text: isDark ? "#F2F2F2" : "#111111",
-    subText: isDark ? "#A7B0BE" : "#555555",
-    muted: isDark ? "#778195" : "#7A7A7A",
-    accent: isDark ? "#38BDF8" : "#2F6BFF",
-    success: isDark ? "#22C55E" : "#16A34A",
-    danger: isDark ? "#FF4B4B" : "#DC2626",
-    chip: isDark ? "#0B1220" : "#F1F5FF",
-  }), [isDark]);
+      whiteKey: isDark ? '#202535' : '#FFFFFF',
+      whiteKeyBorder: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(17,24,39,0.12)',
+      blackKey: isDark ? '#0B0D13' : '#111827',
+      blackKeyBorder: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.10)',
 
-  const [targetNote, setTargetNote] = useState<string>("");
-  const [selectedNote, setSelectedNote] = useState<string | null>(null);
-  const [state, setState] = useState<'idle' | 'answering' | 'result'>('idle');
-  const [secondsLeft, setSecondsLeft] = useState(DIFFICULTY_SECONDS.Easy);
-  const [difficulty, setDifficulty] = useState<Difficulty>('Easy');
-
-  useEffect(() => {
-    Audio.setAudioModeAsync({
-      playsInSilentModeIOS: true,
-      staysActiveInBackground: false,
-      shouldDuckAndroid: true,
-    });
-    return () => {
-      if (currentSound) currentSound.unloadAsync();
+      primaryDepth: '#0F172A',
+      primaryTop: isDark ? '#FFFFFF' : '#111827',
+      primaryText: isDark ? '#000000' : '#FFFFFF',
     };
-  }, []);
+  }, [isDark]);
 
-  const playNote = async (note: string) => {
-    if (!note) return;
-    try {
-      if (currentSound) await currentSound.unloadAsync();
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: NOTE_URLS[note] },
-        { shouldPlay: true, volume: 1.0 }
-      );
-      currentSound = sound;
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    } catch (e) {
-      console.warn("Playback Error:", e);
-    }
-  };
-
-  const startNewRound = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    const nextNote = NOTE_OPTIONS[Math.floor(Math.random() * NOTE_OPTIONS.length)];
-    setTargetNote(nextNote);
-    setSelectedNote(null);
-    setState('answering');
-    setSecondsLeft(DIFFICULTY_SECONDS[difficulty]);
-    playNote(nextNote);
-  };
-
-  const handleSubmit = () => {
-    const isCorrect = selectedNote === targetNote;
-    Haptics.notificationAsync(isCorrect ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Error);
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.spring);
-    setState('result');
-  };
-
-  useEffect(() => {
-    if (state === 'answering' && secondsLeft > 0) {
-      const id = setInterval(() => setSecondsLeft(s => s - 1), 1000);
-      return () => clearInterval(id);
-    } else if (secondsLeft === 0 && state === 'answering') {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-      setState('result');
-    }
-  }, [state, secondsLeft]);
+  const xpLabel = isGuest ? 'Locked' : profile ? `${profile.currentXp ?? 0}` : '—';
+  const levelLabel = isGuest ? 'Locked' : profile ? `${profile.level ?? 1}` : '—';
+  const streakLabel = isGuest ? 'Locked' : profile ? `${profile.streak ?? 0}d` : '—';
 
   return (
-    <ThemedView style={[styles.container, { backgroundColor: colors.pageBg }]}>
-      <View style={styles.header}>
-        <Text style={[styles.titleText, { color: colors.text }]}>Pitch Training</Text>
-      </View>
-
-      <Pressable 
-        onPress={() => state === 'answering' && playNote(targetNote)}
-        disabled={state !== 'answering'}
-        style={({ pressed }) => [
-          styles.playHub,
-          { backgroundColor: colors.cardBg, borderColor: colors.border },
-          pressed && { opacity: 0.7 }
-        ]}
-      >
-        <View style={styles.hubLeft}>
-          <View style={[styles.statusIcon, { backgroundColor: state === 'answering' ? colors.success : colors.muted }]}>
-            <Ionicons name={state === 'answering' ? "headset" : "play"} size={16} color="white" />
-          </View>
-          <View>
-            <Text style={[styles.hubTitle, { color: colors.text }]}>Identify the Pitch</Text>
-            <Text style={[styles.hubStatus, { color: colors.subText }]}>{state === 'answering' ? "Listening..." : "Ready"}</Text>
-          </View>
-        </View>
-        {state === 'answering' && <Ionicons name="volume-high" size={18} color={colors.success} />}
-      </Pressable>
-
-      <View style={[styles.gameCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-        <View style={styles.cardInfo}>
-          <View style={[styles.difficultyGroup, { backgroundColor: colors.pageBg }]}>
-            {(['Easy', 'Medium', 'Hard'] as Difficulty[]).map((d) => (
-              <Pressable
-                key={d}
-                onPress={() => {
-                  setDifficulty(d);
-                  setSecondsLeft(DIFFICULTY_SECONDS[d]);
-                  Haptics.selectionAsync();
-                }}
-                style={[styles.diffTab, difficulty === d && { backgroundColor: colors.accent }]}
-              >
-                <Text style={[styles.diffTabText, { color: difficulty === d ? '#fff' : colors.subText }]}>{d}</Text>
-              </Pressable>
-            ))}
-          </View>
-          <Text style={[styles.timerDisplay, { color: secondsLeft <= 3 ? colors.danger : colors.success }]}>
-            {secondsLeft}s
-          </Text>
+    <View style={[styles.screen, { backgroundColor: theme.bg }]}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
+      <SafeAreaView style={styles.safeArea}>
+        {/* Soft green glow */}
+        <View pointerEvents="none" style={styles.glowWrap}>
+          <View style={[styles.glow1, { backgroundColor: theme.accent }]} />
+          <View style={[styles.glow2, { backgroundColor: theme.accent }]} />
         </View>
 
-        <View style={styles.grid}>
-          {NOTE_OPTIONS.map((note) => (
-            <Pressable
-              key={note}
-              disabled={state !== 'answering'}
-              onPress={() => {
-                setSelectedNote(note);
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              }}
-              style={[
-                styles.noteBtn,
-                { borderColor: colors.border, backgroundColor: colors.cardBg2 },
-                selectedNote === note && { borderColor: colors.accent, backgroundColor: colors.accent }
-              ]}
-            >
-              <Text style={[styles.noteText, { color: selectedNote === note ? '#fff' : colors.text }]}>
-                {note}
-              </Text>
-            </Pressable>
-          ))}
+        <View style={styles.content}>
+          {/* Stats row */}
+          <View style={styles.statsRow}>
+            <StatChip icon={isGuest ? 'lock-closed' : 'flash'} label="XP" value={xpLabel} theme={theme} locked={isGuest} />
+            <StatChip icon={isGuest ? 'lock-closed' : 'ribbon'} label="Level" value={levelLabel} theme={theme} locked={isGuest} />
+            <StatChip icon={isGuest ? 'lock-closed' : 'flame'} label="Streak" value={streakLabel} theme={theme} locked={isGuest} />
+          </View>
+
+          {/* Main card */}
+          <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+              {/* Hero */}
+              <View style={styles.hero}>
+                <View style={[styles.iconRing, { borderColor: theme.border, backgroundColor: theme.softAccent }]}>
+                  <View style={[styles.iconTop, { backgroundColor: theme.accent }]}>
+                    <Ionicons name="musical-notes" size={30} color="#FFFFFF" />
+                  </View>
+                </View>
+
+                <Text style={[styles.title, { color: theme.text }]}>Master your pitch</Text>
+                <Text style={[styles.subtitle, { color: theme.subText }]}>
+                  Listen to a note and tap the matching key. Short rounds, fast feedback.
+                </Text>
+              </View>
+
+              {/* Account (guest only) */}
+              {isGuest && (
+                <>
+                  <Text style={[styles.sectionLabel, { color: theme.subText }]}>ACCOUNT</Text>
+                  <View style={[styles.panel, { borderColor: theme.border, backgroundColor: theme.softPanel }]}>
+                    <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+                      <View style={[styles.panelIcon, { backgroundColor: theme.softAccent }]}>
+                        <Ionicons name="lock-closed" size={16} color={theme.accent} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.panelTitle, { color: theme.text }]}>Sign in to save progress</Text>
+                        <Text style={[styles.panelDesc, { color: theme.subText }]}>
+                          Guests can practice, but XP and Spotify are available only after login.
+                        </Text>
+                      </View>
+                    </View>
+
+                    <Pressable
+                      onPress={() => router.push('/login')}
+                      style={({ pressed }) => [
+                        styles.secondaryCta,
+                        { borderColor: theme.border, backgroundColor: theme.card },
+                        pressed && { opacity: 0.7 },
+                      ]}
+                    >
+                      <Ionicons name="log-in" size={16} color={theme.subText} />
+                      <Text style={[styles.secondaryCtaText, { color: theme.subText }]}>Go to login</Text>
+                    </Pressable>
+                  </View>
+                </>
+              )}
+
+              {/* Piano strip */}
+              <Text style={[styles.sectionLabel, { color: theme.subText }]}>KEYBOARD</Text>
+              <View style={[styles.pianoWrap, { borderColor: theme.border, backgroundColor: theme.softPanel }]}>
+                <PianoStrip theme={theme} />
+                <Text style={[styles.pianoHint, { color: theme.subText }]}>
+                  Practice on a clean piano layout (white + black keys).
+                </Text>
+              </View>
+
+              {/* Features */}
+              <Text style={[styles.sectionLabel, { color: theme.subText }]}>FEATURES</Text>
+              <View style={{ gap: 12 }}>
+                <FeatureRow icon="checkmark-circle" title="Instant feedback" desc="Earn XP for correct answers (sign-in required)." theme={theme} />
+                <FeatureRow icon="grid" title="Piano layout" desc="Keyboard UI that feels natural to use." theme={theme} />
+                <FeatureRow icon="musical-note" title="Spotify (coming soon)" desc="Connect to choose songs for training." theme={theme} />
+              </View>
+            </ScrollView>
+          </View>
         </View>
-      </View>
 
-      <View style={styles.footer}>
-        <Pressable 
-          onPress={state === 'answering' ? handleSubmit : startNewRound}
-          disabled={state === 'answering' && !selectedNote}
-          style={[
-            styles.actionBtn, 
-            { backgroundColor: colors.accent }, 
-            (state === 'answering' && !selectedNote) && { opacity: 0.3 }
-          ]}
-        >
-          <Text style={styles.actionBtnText}>
-            {state === 'answering' ? "SUBMIT ANSWER" : "START NEXT ROUND"}
-          </Text>
-        </Pressable>
-      </View>
+        {/* CTA */}
+        <View style={styles.footer}>
+          <Pressable
+            onPress={() => router.push('/(pitch)/training')}
+            style={({ pressed }) => [
+              styles.primaryShadow,
+              { backgroundColor: theme.primaryDepth },
+              pressed && { transform: [{ translateY: 2 }] },
+            ]}
+          >
+            <View style={[styles.primaryBtn, { backgroundColor: theme.primaryTop }]}>
+              <Text style={[styles.primaryText, { color: theme.primaryText }]}>Start training</Text>
+            </View>
+          </Pressable>
 
-      {state === 'result' && (
-        <View style={[
-          styles.toast, 
-          { backgroundColor: colors.cardBg, borderColor: selectedNote === targetNote ? colors.success : colors.danger }
-        ]}>
-          <Ionicons 
-            name={selectedNote === targetNote ? "checkmark-circle" : "close-circle"} 
-            size={18} 
-            color={selectedNote === targetNote ? colors.success : colors.danger} 
+          <Pressable
+            onPress={() => router.push({ pathname: '/(pitch)/training', params: { mode: 'demo' } })}
+            style={({ pressed }) => [
+              styles.secondaryBtn,
+              { borderColor: theme.border, backgroundColor: theme.card },
+              pressed && { opacity: 0.7 },
+            ]}
+          >
+            <Ionicons name="play-circle" size={18} color={theme.subText} />
+            <Text style={[styles.secondaryText, { color: theme.subText }]}>Quick demo</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    </View>
+  );
+}
+
+function PianoStrip({ theme }: { theme: any }) {
+  const whiteCount = 7;
+  const blackKeys = [
+    { idx: 0, label: 'C#' },
+    { idx: 1, label: 'D#' },
+    { idx: 3, label: 'F#' },
+    { idx: 4, label: 'G#' },
+    { idx: 5, label: 'A#' },
+  ];
+
+  return (
+    <View style={styles.piano}>
+      <View style={styles.blackLayer} pointerEvents="none">
+        {blackKeys.map((k) => (
+          <View
+            key={k.label}
+            style={[
+              styles.blackKey,
+              {
+                left: `${(k.idx + 1) * (100 / whiteCount) - 6}%`,
+                backgroundColor: theme.blackKey,
+                borderColor: theme.blackKeyBorder,
+              },
+            ]}
           />
-          <Text style={[styles.toastText, { color: colors.text }]}>
-            {selectedNote === targetNote ? " PERFECT!" : ` WRONG, WAS ${targetNote}`}
-          </Text>
-        </View>
-      )}
-    </ThemedView>
+        ))}
+      </View>
+
+      <View style={styles.whiteRow}>
+        {Array.from({ length: whiteCount }).map((_, i) => (
+          <View
+            key={i}
+            style={[
+              styles.whiteKey,
+              { backgroundColor: theme.whiteKey, borderColor: theme.whiteKeyBorder },
+            ]}
+          />
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function StatChip({
+  icon,
+  label,
+  value,
+  theme,
+  locked,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  value: string;
+  theme: any;
+  locked?: boolean;
+}) {
+  return (
+    <View style={[styles.statChip, { backgroundColor: theme.card, borderColor: theme.border }]}>
+      <View style={[styles.statIcon, { backgroundColor: theme.softAccent }]}>
+        <Ionicons name={icon} size={16} color={theme.accent} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={[styles.statLabel, { color: theme.subText }]} numberOfLines={1}>
+          {label}
+        </Text>
+        <Text style={[styles.statValue, { color: locked ? theme.subText : theme.text }]} numberOfLines={1}>
+          {value}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+function FeatureRow({
+  icon,
+  title,
+  desc,
+  theme,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  title: string;
+  desc: string;
+  theme: any;
+}) {
+  return (
+    <View style={styles.featureRow}>
+      <View style={[styles.featureIcon, { backgroundColor: theme.softAccent }]}>
+        <Ionicons name={icon} size={16} color={theme.accent} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={[styles.featureTitle, { color: theme.text }]}>{title}</Text>
+        <Text style={[styles.featureDesc, { color: theme.subText }]}>{desc}</Text>
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingHorizontal: 20, paddingTop: 60 },
-  header: { marginBottom: 20 },
-  titleText: { fontSize: 30, fontWeight: '900' },
-  playHub: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 18, borderRadius: 18, borderWidth: 1, marginBottom: 20 },
-  hubLeft: { flexDirection: 'row', alignItems: 'center' },
-  statusIcon: { width: 36, height: 36, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 14 },
-  hubTitle: { fontSize: 16, fontWeight: '800' },
-  hubStatus: { fontSize: 12, marginTop: 2 },
-  gameCard: { padding: 20, borderRadius: 18, borderWidth: 1 },
-  cardInfo: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 25 },
-  difficultyGroup: { flexDirection: 'row', padding: 4, borderRadius: 10 },
-  diffTab: { paddingVertical: 6, paddingHorizontal: 14, borderRadius: 8 },
-  diffTabText: { fontSize: 12, fontWeight: '800' },
-  timerDisplay: { fontSize: 20, fontWeight: '900' },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center' },
-  noteBtn: { width: 60, height: 60, borderRadius: 16, borderWidth: 1, justifyContent: 'center', alignItems: 'center', margin: 8 },
-  noteText: { fontSize: 20, fontWeight: '900' },
-  footer: { marginTop: 'auto', marginBottom: 40 },
-  actionBtn: { paddingVertical: 18, borderRadius: 18, alignItems: 'center' },
-  actionBtnText: { color: '#fff', fontSize: 16, fontWeight: '900', letterSpacing: 1 },
-  toast: { position: 'absolute', bottom: 120, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 24, borderRadius: 50, borderWidth: 2, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 10 },
-  toastText: { fontWeight: '900', fontSize: 14, marginLeft: 8 }
+  screen: { flex: 1, paddingHorizontal: 16 },
+  safeArea: { flex: 1 },
+
+  glowWrap: { ...StyleSheet.absoluteFillObject, overflow: 'hidden' },
+  glow1: {
+    position: 'absolute',
+    width: 340,
+    height: 340,
+    borderRadius: 170,
+    top: -170,
+    left: -100,
+    opacity: 0.16,
+  },
+  glow2: {
+    position: 'absolute',
+    width: 280,
+    height: 280,
+    borderRadius: 140,
+    top: -150,
+    right: -120,
+    opacity: 0.10,
+  },
+
+  content: { flex: 1, paddingTop: 6, paddingBottom: 12 },
+
+  statsRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
+  statChip: {
+    flex: 1,
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 10,
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'center',
+  },
+  statIcon: { width: 34, height: 34, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  statLabel: { fontSize: 12, fontWeight: '700' },
+  statValue: { marginTop: 2, fontSize: 15, fontWeight: '900' },
+
+  card: { flex: 1, borderRadius: 24, borderWidth: 1, padding: 16 },
+  scrollContent: { paddingBottom: 6 },
+
+  hero: { alignItems: 'center', paddingTop: 2, paddingBottom: 8 },
+  iconRing: {
+    width: 86,
+    height: 86,
+    borderRadius: 24,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  iconTop: { width: 62, height: 62, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  title: { fontSize: 24, fontWeight: '900', letterSpacing: -0.4, textAlign: 'center' },
+  subtitle: { marginTop: 8, fontSize: 14, fontWeight: '700', textAlign: 'center', lineHeight: 20 },
+
+  sectionLabel: { marginTop: 14, marginBottom: 8, fontSize: 12, fontWeight: '900', letterSpacing: 1.0 },
+
+  panel: { borderRadius: 18, borderWidth: 1, padding: 12, gap: 10 },
+  panelIcon: { width: 34, height: 34, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  panelTitle: { fontSize: 14, fontWeight: '900' },
+  panelDesc: { marginTop: 2, fontSize: 12, fontWeight: '700', lineHeight: 16 },
+  secondaryCta: {
+    height: 42,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  secondaryCtaText: { fontSize: 13, fontWeight: '800' },
+
+  pianoWrap: { borderRadius: 18, borderWidth: 1, padding: 12 },
+  piano: { height: 64, justifyContent: 'flex-end' },
+  whiteRow: { flexDirection: 'row', gap: 6 },
+  whiteKey: { flex: 1, height: 46, borderRadius: 10, borderWidth: 1 },
+  blackLayer: { position: 'absolute', left: 0, right: 0, top: 0, height: 44 },
+  blackKey: { position: 'absolute', width: 24, height: 34, borderRadius: 8, borderWidth: 1 },
+  pianoHint: { marginTop: 10, fontSize: 12, fontWeight: '700' },
+
+  featureRow: { flexDirection: 'row', gap: 10, alignItems: 'center' },
+  featureIcon: { width: 34, height: 34, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  featureTitle: { fontSize: 14, fontWeight: '900' },
+  featureDesc: { marginTop: 2, fontSize: 12, fontWeight: '700', lineHeight: 16 },
+
+  footer: { paddingBottom: 18, gap: 10 },
+  primaryShadow: { borderRadius: 18, paddingBottom: 4 },
+  primaryBtn: { height: 56, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  primaryText: { fontSize: 16, fontWeight: '900', letterSpacing: 0.2 },
+
+  secondaryBtn: {
+    height: 46,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  secondaryText: { fontSize: 14, fontWeight: '800' },
 });

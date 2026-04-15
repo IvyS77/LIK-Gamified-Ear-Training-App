@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -7,42 +7,47 @@ import {
   Alert,
   Platform,
   useColorScheme,
+  StyleSheet,
+  KeyboardAvoidingView,
+  ScrollView,
 } from "react-native";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { auth } from "@/firebaseConfig";
 
 export default function LoginScreen() {
   const router = useRouter();
-  const scheme = useColorScheme();
-  const isDark = scheme === "dark";
+  const isDark = useColorScheme() === "dark";
 
-  const colors = {
-    bg: isDark ? "#0B0B0B" : "#FFFFFF",
-    card: isDark ? "#161616" : "#F6F7FB",
-    text: isDark ? "#FFFFFF" : "#111111",
-    label: isDark ? "#EDEDED" : "#222222",
-    border: isDark ? "#555555" : "#D0D5DD",
-    placeholder: isDark ? "#C7C7C7" : "#667085",
-    button: "#2F6BFF",
-    buttonDisabled: "#9BB6FF",
-  };
+  const theme = useMemo(() => {
+    const accent = "#58CC02";
+    return {
+      bg: isDark ? "#0F1115" : "#F3F7FF",
+      card: isDark ? "#171A21" : "#FFFFFF",
+      text: isDark ? "#FFFFFF" : "#111827",
+      subText: isDark ? "rgba(255,255,255,0.72)" : "#6B7280",
+      border: isDark ? "rgba(255,255,255,0.10)" : "rgba(17,24,39,0.08)",
+      soft: isDark ? "rgba(255,255,255,0.04)" : "#F7FAFF",
+      accent,
+      primaryDepth: "#0F172A",
+      primaryTop: isDark ? "#FFFFFF" : "#111827",
+      primaryText: isDark ? "#000000" : "#FFFFFF",
+    };
+  }, [isDark]);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   const showMessage = (title: string, message: string) => {
-    if (Platform.OS === "web") {
-      window.alert(`${title}\n\n${message}`);
-    } else {
-      Alert.alert(title, message);
-    }
+    if (Platform.OS === "web") window.alert(`${title}\n\n${message}`);
+    else Alert.alert(title, message);
   };
 
   const handleLogin = async () => {
     const emailClean = email.trim();
-
     if (!emailClean || !password) {
       showMessage("Missing fields", "Please enter both email and password.");
       return;
@@ -51,8 +56,6 @@ export default function LoginScreen() {
     try {
       setSubmitting(true);
       await signInWithEmailAndPassword(auth, emailClean, password);
-
-      // Go to tabs after successful login
       router.back();
     } catch (error: any) {
       showMessage("Login Error", error?.message ?? "Login failed.");
@@ -61,88 +64,155 @@ export default function LoginScreen() {
     }
   };
 
-  const inputStyle = {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    marginBottom: 14,
-    color: colors.text,
-    backgroundColor: colors.card,
-    fontSize: 16,
-    ...(Platform.OS === "web"
-      ? ({
-          outlineStyle: "none",
-        } as any)
-      : {}),
-  };
-
   return (
-    <View
-      style={{
-        flex: 1,
-        justifyContent: "center",
-        padding: 20,
-        backgroundColor: colors.bg,
-      }}
-    >
-      <Text
-        style={{
-          fontSize: 30,
-          fontWeight: "800",
-          color: colors.text,
-          marginBottom: 20,
-        }}
-      >
-        Login
-      </Text>
+    <View style={[styles.screen, { backgroundColor: theme.bg }]}>
+      <SafeAreaView style={{ flex: 1 }}>
+        <Glow accent={theme.accent} />
 
-      <Text style={{ color: colors.label, marginBottom: 6 }}>
-        Email
-      </Text>
-      <TextInput
-        placeholder="Enter email"
-        placeholderTextColor={colors.placeholder}
-        value={email}
-        onChangeText={setEmail}
-        autoCapitalize="none"
-        autoCorrect={false}
-        keyboardType="email-address"
-        textContentType="emailAddress"
-        style={inputStyle}
-      />
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={{ flex: 1 }}
+        >
+          <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+            <Pressable
+              onPress={() => router.back()}
+              style={({ pressed }) => [styles.backBtn, pressed && { opacity: 0.7 }]}
+              hitSlop={10}
+            >
+              <Ionicons name="arrow-back" size={22} color={theme.text} />
+            </Pressable>
 
-      <Text style={{ color: colors.label, marginBottom: 6 }}>
-        Password
-      </Text>
-      <TextInput
-        placeholder="Enter password"
-        placeholderTextColor={colors.placeholder}
-        value={password}
-        secureTextEntry
-        onChangeText={setPassword}
-        autoCapitalize="none"
-        autoCorrect={false}
-        textContentType="password"
-        style={inputStyle}
-      />
+            <View style={[styles.heroCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+              <View style={[styles.iconRing, { borderColor: theme.border, backgroundColor: theme.soft }]}>
+                <View style={[styles.iconTop, { backgroundColor: theme.accent }]}>
+                  <Ionicons name="log-in" size={22} color="#FFFFFF" />
+                </View>
+              </View>
 
-      <Pressable
-        onPress={handleLogin}
-        disabled={submitting}
-        style={{
-          backgroundColor: submitting ? colors.buttonDisabled : colors.button,
-          paddingVertical: 14,
-          borderRadius: 10,
-          alignItems: "center",
-          marginTop: 6,
-        }}
-      >
-        <Text style={{ color: "#fff", fontWeight: "800", fontSize: 16 }}>
-          {submitting ? "Logging in..." : "Login"}
-        </Text>
-      </Pressable>
+              <Text style={[styles.title, { color: theme.text }]}>Sign in</Text>
+              <Text style={[styles.subTitle, { color: theme.subText }]}>
+                Welcome back. Let’s train your ear.
+              </Text>
+
+              {/* Piano key form card */}
+              <View style={[styles.pianoCard, { backgroundColor: theme.soft, borderColor: theme.border }]}>
+                <View style={[styles.blackNotch, { backgroundColor: isDark ? "#0B0D13" : "#111827" }]} />
+
+                <Text style={[styles.label, { color: theme.subText }]}>Email</Text>
+                <TextInput
+                  placeholder="Enter email"
+                  placeholderTextColor={theme.subText}
+                  value={email}
+                  onChangeText={setEmail}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="email-address"
+                  textContentType="emailAddress"
+                  style={[
+                    styles.input,
+                    { backgroundColor: theme.card, borderColor: theme.border, color: theme.text },
+                  ]}
+                />
+
+                <Text style={[styles.label, { color: theme.subText }]}>Password</Text>
+                <TextInput
+                  placeholder="Enter password"
+                  placeholderTextColor={theme.subText}
+                  value={password}
+                  secureTextEntry
+                  onChangeText={setPassword}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  textContentType="password"
+                  style={[
+                    styles.input,
+                    { backgroundColor: theme.card, borderColor: theme.border, color: theme.text },
+                  ]}
+                />
+
+                <Pressable
+                  onPress={handleLogin}
+                  disabled={submitting}
+                  style={({ pressed }) => [
+                    styles.primaryShadow,
+                    { backgroundColor: theme.primaryDepth, opacity: submitting ? 0.7 : 1 },
+                    pressed && { transform: [{ translateY: 2 }] },
+                  ]}
+                >
+                  <View style={[styles.primaryBtn, { backgroundColor: theme.primaryTop }]}>
+                    <Text style={[styles.primaryText, { color: theme.primaryText }]}>
+                      {submitting ? "Signing in..." : "Sign in"}
+                    </Text>
+                  </View>
+                </Pressable>
+
+                <Pressable
+                  onPress={() => router.push("/(auth)/signup")}
+                  style={({ pressed }) => [
+                    styles.secondaryBtn,
+                    { borderColor: theme.border, backgroundColor: theme.card },
+                    pressed && { opacity: 0.75 },
+                  ]}
+                >
+                  <Text style={[styles.secondaryText, { color: theme.text }]}>
+                    Create account
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
     </View>
   );
 }
+
+function Glow({ accent }: { accent: string }) {
+  return (
+    <View pointerEvents="none" style={styles.glowWrap}>
+      <View style={[styles.glow1, { backgroundColor: accent }]} />
+      <View style={[styles.glow2, { backgroundColor: accent }]} />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  screen: { flex: 1, paddingHorizontal: 16 },
+
+  glowWrap: { ...StyleSheet.absoluteFillObject, overflow: "hidden" },
+  glow1: { position: "absolute", width: 340, height: 340, borderRadius: 170, top: -170, left: -100, opacity: 0.16 },
+  glow2: { position: "absolute", width: 280, height: 280, borderRadius: 140, top: -150, right: -120, opacity: 0.10 },
+
+  scroll: { paddingTop: 10, paddingBottom: 24 },
+
+  backBtn: { alignSelf: "flex-start", paddingVertical: 8 },
+
+  heroCard: { borderRadius: 24, borderWidth: 1, padding: 16 },
+
+  iconRing: {
+    width: 72,
+    height: 72,
+    borderRadius: 22,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    alignSelf: "center",
+  },
+  iconTop: { width: 52, height: 52, borderRadius: 16, alignItems: "center", justifyContent: "center" },
+
+  title: { marginTop: 12, fontSize: 24, fontWeight: "900", textAlign: "center" },
+  subTitle: { marginTop: 8, fontSize: 13, fontWeight: "700", textAlign: "center", lineHeight: 18 },
+
+  pianoCard: { marginTop: 16, borderRadius: 22, borderWidth: 1, padding: 14 },
+  blackNotch: { width: 70, height: 14, borderRadius: 8, alignSelf: "center", marginBottom: 12, opacity: 0.9 },
+
+  label: { fontSize: 12, fontWeight: "900", letterSpacing: 0.8, marginBottom: 6 },
+  input: { borderWidth: 1, borderRadius: 16, paddingVertical: 12, paddingHorizontal: 14, marginBottom: 12, fontSize: 16, fontWeight: "700" },
+
+  primaryShadow: { borderRadius: 18, paddingBottom: 4, marginTop: 6 },
+  primaryBtn: { height: 54, borderRadius: 18, alignItems: "center", justifyContent: "center" },
+  primaryText: { fontSize: 15, fontWeight: "900" },
+
+  secondaryBtn: { height: 50, borderRadius: 18, borderWidth: 1, alignItems: "center", justifyContent: "center", marginTop: 10 },
+  secondaryText: { fontSize: 15, fontWeight: "900" },
+});

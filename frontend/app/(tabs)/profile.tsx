@@ -1,10 +1,4 @@
-import { auth, backend, uploadImage } from "@/firebaseConfig";
-import { useAuth, UserProfile } from "@/hooks/use-auth";
-import { Ionicons } from "@expo/vector-icons";
-import * as ImagePicker from "expo-image-picker";
-import { useRouter } from "expo-router";
-import { signOut } from "firebase/auth";
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Image,
@@ -17,51 +11,96 @@ import {
   StyleSheet,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
+import { useRouter } from "expo-router";
+import { signOut } from "firebase/auth";
+import { doc, serverTimestamp, setDoc } from "firebase/firestore";
+
+import { auth, backend, uploadImage, db } from "@/firebaseConfig";
+import { useAuth, UserProfile } from "@/hooks/use-auth";
+
+const DEMO_DAILY_XP_CAP = 50;
+
+function xpToLevelUp(level: number) {
+  if (level <= 20) return 20;
+  return 20 + (level - 20) * 2;
+}
+function clamp01(x: number) {
+  return Math.max(0, Math.min(1, x));
+}
+
+function formatErr(e: any) {
+  const code = e?.code ? String(e.code) : "";
+  const msg = e?.message ? String(e.message) : String(e);
+  return code ? `${code}: ${msg}` : msg;
+}
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const scheme = useColorScheme();
-  const isDark = scheme === "dark";
+  const isDark = useColorScheme() === "dark";
 
   const [user, profile] = useAuth();
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
+  const [savingAvatar, setSavingAvatar] = useState(false);
 
   useEffect(() => {
-    if (profile?.profilePicture) {
-      setAvatarUri(profile.profilePicture);
-    }
+    if (profile?.profilePicture) setAvatarUri(profile.profilePicture);
   }, [profile?.profilePicture]);
 
-  const colors = useMemo(() => ({
-    pageBg: isDark ? "#0B0F14" : "#F5F6FA",
-    cardBg: isDark ? "#121922" : "#FFFFFF",
-    border: isDark ? "#1F2A37" : "#E2E5EE",
-    text: isDark ? "#FFFFFF" : "#111111",
-    subText: isDark ? "#A7B0BE" : "#555555",
-    muted: isDark ? "#778195" : "#7A7A7A",
-    accent: isDark ? "#38BDF8" : "#2F6BFF",
-    chip: isDark ? "#0B1220" : "#F1F5FF",
-    danger: isDark ? "#FF4B4B" : "#DC2626",
-  }), [isDark]);
+  const theme = useMemo(() => {
+    const accent = "#58CC02";
+    return {
+      bg: isDark ? "#0F1115" : "#F3F7FF",
+      card: isDark ? "#171A21" : "#FFFFFF",
+      text: isDark ? "#FFFFFF" : "#111827",
+      subText: isDark ? "rgba(255,255,255,0.72)" : "#6B7280",
+      border: isDark ? "rgba(255,255,255,0.10)" : "rgba(17,24,39,0.08)",
+      soft: isDark ? "rgba(255,255,255,0.04)" : "#F7FAFF",
+      accent,
+      danger: isDark ? "#FF6B6B" : "#DC2626",
 
+      primaryDepth: "#0F172A",
+      primaryTop: isDark ? "#FFFFFF" : "#111827",
+      primaryText: isDark ? "#000000" : "#FFFFFF",
+    };
+  }, [isDark]);
+
+  /**
+   * Save profile changes.
+   * - Firestore write is REQUIRED (persistence across logins)
+   * - Backend sync is best-effort (on iPhone real device localhost may fail)
+   */
   async function updateProfile(update: Partial<UserProfile>) {
+    const uid = user?.uid;
+    if (!uid) {
+      Alert.alert("Error", "Not signed in.");
+      throw new Error("Not signed in");
+    }
+
+    // 1) Firestore write (required)
     try {
-      const token = await user?.getIdToken();
-      let finalUpdate = { ...update };
+      await setDoc(
+        doc(db, "users", uid),
+        { ...update, updatedAt: serverTimestamp() },
+        { merge: true }
+      );
+    } catch (e) {
+      console.error("Firestore setDoc failed:", e);
+      Alert.alert("Error", `Failed to save profile changes.\n\n${formatErr(e)}`);
+      throw e;
+    }
 
-      if (update.profilePicture && update.profilePicture !== profile?.profilePicture) {
-        const imageId = await uploadImage(update.profilePicture);
-        finalUpdate.profilePicture = `https://firebasestorage.googleapis.com/v0/b/ear-training-8f082.firebasestorage.app/o/${imageId}?alt=media`;
-      }
-
+    // 2) Backend sync (best-effort)
+    try {
+      const token = await user.getIdToken();
       await fetch(`${backend}/update-profile`, {
         method: "POST",
-        body: JSON.stringify({ ...finalUpdate, authToken: token }),
-        headers: { "Content-type": "application/json" }
+        body: JSON.stringify({ ...update, authToken: token }),
+        headers: { "Content-type": "application/json" },
       });
-    } catch (error) {
-      console.error(error);
-      Alert.alert("Error", "Failed to sync profile changes.");
+    } catch (e) {
+      console.warn("Backend sync failed (ignored):", e);
     }
   }
 
@@ -69,7 +108,8 @@ export default function ProfileScreen() {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (perm.status !== "granted") {
       Alert.alert("Permission denied", "Allow access in settings.", [
-        { text: "Settings", onPress: () => Linking.openSettings() }
+        { text: "Settings", onPress: () => Linking.openSettings() },
+        { text: "Cancel", style: "cancel" },
       ]);
       return;
     }
@@ -78,147 +118,401 @@ export default function ProfileScreen() {
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [1, 1],
-      quality: 0.6,
+      quality: 0.7,
     });
 
-    if (!result.canceled && result.assets[0].uri) {
-      const uri = result.assets[0].uri;
-      setAvatarUri(uri);
-      await updateProfile({ profilePicture: uri });
+    if (!result.canceled && result.assets?.[0]?.uri) {
+      const localUri = result.assets[0].uri;
+
+      const prev = avatarUri;
+      setAvatarUri(localUri);
+
+      try {
+        setSavingAvatar(true);
+
+        const downloadURL = await uploadImage(localUri);
+        await updateProfile({ profilePicture: downloadURL });
+        setAvatarUri(downloadURL);
+      } catch (e) {
+        console.error("pickAvatar failed:", e);
+        setAvatarUri(prev ?? profile?.profilePicture ?? null);
+      } finally {
+        setSavingAvatar(false);
+      }
     }
   };
 
-  const Pill = ({ label, value }: { label: string, value: number | string }) => (
-    <View style={[styles.pill, { backgroundColor: colors.chip, borderColor: colors.border }]}>
-      <Text style={styles.pillLabel}>{label}</Text>
-      <Text style={[styles.pillValue, { color: colors.text }]}>{value}</Text>
-    </View>
-  );
-
-  const StatCard = ({ title, value, icon, target }: any) => (
-    <Pressable 
-      onPress={() => router.push(target)}
-      style={({ pressed }) => [
-        styles.statCard, 
-        { backgroundColor: colors.cardBg, borderColor: colors.border, opacity: pressed ? 0.8 : 1 }
-      ]}
-    >
-      <View style={[styles.iconCircle, { backgroundColor: isDark ? "#1A2533" : "#F0F5FF" }]}>
-        <Ionicons name={icon} size={22} color={colors.accent} />
-      </View>
-      <Text style={[styles.statValue, { color: colors.text }]}>{value}</Text>
-      <Text style={[styles.statLabel, { color: colors.muted }]}>{title}</Text>
-    </Pressable>
-  );
-
   if (user === undefined) return null;
 
+  // -------------------------
+  // Guest profile (ONLY this part is visually adjusted)
+  // -------------------------
   if (user === null) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: colors.pageBg, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-        <Ionicons name="person-circle-outline" size={80} color={colors.muted} />
-        <Text style={{ color: colors.text, fontSize: 24, fontWeight: "900", marginTop: 20 }}>Guest Mode</Text>
-        <Text style={{ color: colors.subText, textAlign: 'center', marginTop: 10 }}>Sign in to track your progress and compete on leaderboards.</Text>
-        
-        <Pressable 
-          onPress={() => router.push("/(auth)/login")}
-          style={{ backgroundColor: colors.accent, width: '100%', padding: 16, borderRadius: 14, marginTop: 30, alignItems: 'center' }}
-        >
-          <Text style={{ color: "#FFF", fontWeight: "900", fontSize: 16 }}>Sign In</Text>
-        </Pressable>
+      <View style={[styles.screen, { backgroundColor: theme.bg }]}>
+        <SafeAreaView style={{ flex: 1 }}>
+          <Glow accent={theme.accent} />
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.guestScroll}
+          >
+            <View
+              style={[
+                styles.heroCard,
+                { backgroundColor: theme.card, borderColor: theme.border },
+              ]}
+            >
+              {/* softer ring: no stark white, uses soft bg + subtle border + shadow */}
+              <View
+                style={[
+                  styles.heroIconRing,
+                  {
+                    borderColor: theme.border,
+                    backgroundColor: theme.soft,
+                    shadowColor: "#000",
+                    shadowOpacity: isDark ? 0.25 : 0.10,
+                    shadowRadius: 10,
+                    shadowOffset: { width: 0, height: 6 },
+                    elevation: 3,
+                  },
+                ]}
+              >
+                <View style={[styles.heroIconTop, { backgroundColor: theme.accent }]}>
+                  <Ionicons name="person" size={28} color="#FFFFFF" />
+                </View>
+              </View>
 
-        <Pressable 
-          onPress={() => router.push("/(auth)/signup")}
-          style={{ width: '100%', padding: 16, borderRadius: 14, marginTop: 12, alignItems: 'center', borderWidth: 2, borderColor: colors.border }}
-        >
-          <Text style={{ color: colors.accent, fontWeight: "900", fontSize: 16 }}>Create Account</Text>
-        </Pressable>
-      </SafeAreaView>
+              <Text style={[styles.heroTitle, { color: theme.text }]}>Guest profile</Text>
+              <Text style={[styles.heroDesc, { color: theme.subText }]}>
+                Sign in to save XP, streaks, and your avatar across devices.
+              </Text>
+
+              {/* slight spacing */}
+              <View style={{ height: 18 }} />
+
+              <Pressable
+                onPress={() => router.push("/(auth)/login")}
+                style={({ pressed }) => [
+                  styles.primaryShadow,
+                  { backgroundColor: theme.primaryDepth },
+                  pressed && { transform: [{ translateY: 2 }] },
+                ]}
+              >
+                <View style={[styles.primaryBtn, { backgroundColor: theme.primaryTop }]}>
+                  <Text style={[styles.primaryText, { color: theme.primaryText }]}>
+                    Sign in
+                  </Text>
+                </View>
+              </Pressable>
+
+              <Pressable
+                onPress={() => router.push("/(auth)/signup")}
+                style={({ pressed }) => [
+                  styles.secondaryBtn,
+                  { borderColor: theme.border, backgroundColor: theme.card, marginTop: 14 },
+                  pressed && { opacity: 0.75 },
+                ]}
+              >
+                <Text style={[styles.secondaryText, { color: theme.text }]}>
+                  Create account
+                </Text>
+              </Pressable>
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </View>
     );
   }
 
+  // -------------------------
+  // Signed-in profile (unchanged layout)
+  // -------------------------
+  const displayName =
+    profile?.firstName ? `${profile.firstName} ${profile.lastName ?? ""}`.trim() : "Your profile";
+
+  const level = Number(profile?.level ?? 1);
+  const currentXp = Number(profile?.currentXp ?? 0);
+  const streak = Number(profile?.streak ?? 0);
+
+  const need = xpToLevelUp(level);
+  const progress01 = clamp01(need > 0 ? currentXp / need : 0);
+  const xpRemaining = Math.max(0, need - currentXp);
+
+  const demoXpToday = Number((profile as any)?.demoXpToday ?? 0);
+  const demoCap01 = clamp01(DEMO_DAILY_XP_CAP > 0 ? demoXpToday / DEMO_DAILY_XP_CAP : 0);
+
+  const accuracy = (profile as any)?.accuracy;
+  const totalSessions = (profile as any)?.totalSessions;
+
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.pageBg }}>
-      <View style={styles.header}>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>Profile</Text>
-        <Pressable onPress={() => router.push("/(profile)/settings")}>
-          <Ionicons name="settings-outline" size={26} color={colors.text} />
-        </Pressable>
+    <View style={[styles.screen, { backgroundColor: theme.bg }]}>
+      <SafeAreaView style={{ flex: 1 }}>
+        <Glow accent={theme.accent} />
+
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+          <View style={[styles.heroCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            <View style={styles.heroRow}>
+              <Pressable onPress={savingAvatar ? undefined : pickAvatar} style={{ alignItems: "center" }}>
+                <View style={[styles.avatarRing, { borderColor: theme.border, backgroundColor: theme.soft }]}>
+                  <View style={[styles.avatarFrame, { borderColor: theme.border, backgroundColor: theme.card }]}>
+                    {avatarUri ? (
+                      <Image source={{ uri: avatarUri }} style={styles.avatarImg} />
+                    ) : (
+                      <Ionicons name="person" size={38} color={theme.subText} />
+                    )}
+                  </View>
+                </View>
+
+                {/* soften the badge ring too (avoid stark white outline) */}
+                <View
+                  style={[
+                    styles.cameraBadge,
+                    {
+                      backgroundColor: theme.accent,
+                      borderColor: theme.soft,
+                      opacity: savingAvatar ? 0.6 : 1,
+                    },
+                  ]}
+                >
+                  <Ionicons name={savingAvatar ? "cloud-upload" : "camera"} size={14} color="#FFFFFF" />
+                </View>
+              </Pressable>
+
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.name, { color: theme.text }]} numberOfLines={1}>
+                  {displayName}
+                </Text>
+                <Text style={[styles.email, { color: theme.subText }]} numberOfLines={1}>
+                  {user.email}
+                </Text>
+
+                <View style={styles.actionRow}>
+                  <Pressable
+                    onPress={() => router.push("/(profile)/settings")}
+                    style={({ pressed }) => [
+                      styles.actionBtn,
+                      { backgroundColor: theme.soft, borderColor: theme.border },
+                      pressed && { opacity: 0.75 },
+                    ]}
+                  >
+                    <Ionicons name="settings-outline" size={16} color={theme.text} />
+                    <Text style={[styles.actionText, { color: theme.text }]}>Settings</Text>
+                  </Pressable>
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.pillsRow}>
+              <Pill label="LEVEL" value={level} theme={theme} />
+              <Pill label="XP" value={currentXp} theme={theme} />
+              <Pill label="STREAK" value={`${streak}d`} theme={theme} />
+            </View>
+          </View>
+
+          <View style={[styles.panel, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            <Text style={[styles.sectionLabel, { color: theme.subText }]}>PROGRESS</Text>
+
+            <View style={styles.progressHeader}>
+              <Text style={[styles.panelTitle, { color: theme.text }]}>Level {level}</Text>
+              <Text style={[styles.panelDesc, { color: theme.subText }]}>{xpRemaining} XP to level up</Text>
+            </View>
+
+            <View
+              style={[
+                styles.progressTrack,
+                { backgroundColor: isDark ? "rgba(255,255,255,0.10)" : "rgba(17,24,39,0.08)" },
+              ]}
+            >
+              <View style={[styles.progressFill, { width: `${progress01 * 100}%`, backgroundColor: theme.accent }]} />
+            </View>
+
+            <View style={styles.miniRow}>
+              <Text style={[styles.miniLabel, { color: theme.subText }]}>Demo cap</Text>
+              <Text style={[styles.miniValue, { color: theme.subText }]}>
+                {demoXpToday}/{DEMO_DAILY_XP_CAP} XP
+              </Text>
+            </View>
+            <View
+              style={[
+                styles.miniTrack,
+                { backgroundColor: isDark ? "rgba(255,255,255,0.10)" : "rgba(17,24,39,0.08)" },
+              ]}
+            >
+              <View style={[styles.miniFill, { width: `${demoCap01 * 100}%`, backgroundColor: theme.accent }]} />
+            </View>
+          </View>
+
+          <View style={[styles.panel, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            <Text style={[styles.sectionLabel, { color: theme.subText }]}>STATS</Text>
+            <View style={styles.grid}>
+              <MetricCard
+                title="Sessions"
+                value={totalSessions ?? "—"}
+                icon="time-outline"
+                theme={theme}
+                onPress={() => router.push("/(profile)/history")}
+              />
+              <MetricCard
+                title="Accuracy"
+                value={accuracy != null ? `${accuracy}%` : "—"}
+                icon="analytics-outline"
+                theme={theme}
+                onPress={() => router.push("/(profile)/accuracy")}
+              />
+            </View>
+          </View>
+
+          <View style={[styles.panel, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            <Text style={[styles.sectionLabel, { color: theme.subText }]}>ACCOUNT</Text>
+
+            <Pressable
+              onPress={() => signOut(auth)}
+              style={({ pressed }) => [
+                styles.dangerBtn,
+                {
+                  borderColor: theme.border,
+                  backgroundColor: isDark ? "rgba(255, 75, 75, 0.10)" : "rgba(220, 38, 38, 0.08)",
+                  opacity: pressed ? 0.8 : 1,
+                },
+              ]}
+            >
+              <Ionicons name="log-out-outline" size={18} color={theme.danger} />
+              <Text style={[styles.dangerText, { color: theme.danger }]}>Log out</Text>
+            </Pressable>
+          </View>
+
+          <View style={{ height: 16 }} />
+        </ScrollView>
+      </SafeAreaView>
+    </View>
+  );
+}
+
+function Glow({ accent }: { accent: string }) {
+  return (
+    <View pointerEvents="none" style={styles.glowWrap}>
+      <View style={[styles.glow1, { backgroundColor: accent }]} />
+      <View style={[styles.glow2, { backgroundColor: accent }]} />
+    </View>
+  );
+}
+
+function Pill({ label, value, theme }: { label: string; value: number | string; theme: any }) {
+  return (
+    <View style={[styles.pill, { backgroundColor: theme.soft, borderColor: theme.border }]}>
+      <Text style={[styles.pillLabel, { color: theme.subText }]}>{label}</Text>
+      <Text style={[styles.pillValue, { color: theme.text }]}>{value}</Text>
+    </View>
+  );
+}
+
+function MetricCard({
+  title,
+  value,
+  icon,
+  onPress,
+  theme,
+}: {
+  title: string;
+  value: string | number;
+  icon: keyof typeof Ionicons.glyphMap;
+  onPress: () => void;
+  theme: any;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.metricCard,
+        { backgroundColor: theme.soft, borderColor: theme.border, opacity: pressed ? 0.85 : 1 },
+      ]}
+    >
+      <View style={[styles.metricIcon, { backgroundColor: theme.card, borderColor: theme.border }]}>
+        <Ionicons name={icon} size={18} color={theme.accent} />
       </View>
-
-      <ScrollView contentContainerStyle={{ padding: 20 }}>
-        <View style={{ alignItems: 'center', marginBottom: 30 }}>
-          <Pressable onPress={pickAvatar}>
-            <View style={[styles.avatarFrame, { borderColor: colors.border, backgroundColor: colors.cardBg }]}>
-              {avatarUri ? (
-                <Image source={{ uri: avatarUri }} style={styles.avatarImg} />
-              ) : (
-                <Ionicons name="person" size={55} color={colors.muted} />
-              )}
-            </View>
-            <View style={[styles.cameraBadge, { backgroundColor: colors.accent, borderColor: colors.pageBg }]}>
-              <Ionicons name="camera" size={16} color="#FFF" />
-            </View>
-          </Pressable>
-          
-          <Text style={[styles.userName, { color: colors.text }]}>
-            {profile?.firstName ? `${profile.firstName} ${profile.lastName ?? ""}` : "Ivy Sun"}
-          </Text>
-          <Text style={{ color: colors.subText, fontSize: 15, marginTop: 4 }}>
-            {user.email} · Joined 2026
-          </Text>
-        </View>
-
-        <View style={{ flexDirection: "row", gap: 12, marginBottom: 35 }}>
-          <Pill label="LEVEL" value={profile?.level ?? 1} />
-          <Pill label="XP" value={profile?.currentXp ?? 0} />
-          <Pill label="STREAK" value={profile?.streak ?? 0} />
-        </View>
-
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Statistics</Text>
-        
-        <View style={{ flexDirection: 'row', gap: 15 }}>
-          <StatCard 
-            title="History" 
-            value={profile?.totalSessions ?? "12"} 
-            icon="time-outline" 
-            target="/(profile)/history" 
-          />
-          <StatCard 
-            title="Accuracy" 
-            value={profile?.accuracy ? `${profile.accuracy}%` : "85%"} 
-            icon="analytics-outline" 
-            target="/(profile)/accuracy" 
-          />
-        </View>
-
-        <View style={{ height: 40 }} />
-
-        <Pressable 
-          onPress={() => signOut(auth)} 
-          style={[styles.logoutBtn, { backgroundColor: isDark ? "#2A1014" : "#FFF0F0", borderColor: isDark ? "#4A1B20" : "#FFD0D0" }]}
-        >
-          <Text style={{ color: colors.danger, fontWeight: "900", fontSize: 16 }}>Log Out</Text>
-        </Pressable>
-      </ScrollView>
-    </SafeAreaView>
+      <Text style={[styles.metricValue, { color: theme.text }]} numberOfLines={1}>
+        {value}
+      </Text>
+      <Text style={[styles.metricTitle, { color: theme.subText }]} numberOfLines={1}>
+        {title}
+      </Text>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 10 },
-  headerTitle: { fontSize: 28, fontWeight: "900" },
-  avatarFrame: { width: 110, height: 110, borderRadius: 55, borderWidth: 4, overflow: "hidden", justifyContent: "center", alignItems: "center" },
+  screen: { flex: 1, paddingHorizontal: 16 },
+
+  glowWrap: { ...StyleSheet.absoluteFillObject, overflow: "hidden" },
+  glow1: { position: "absolute", width: 340, height: 340, borderRadius: 170, top: -170, left: -100, opacity: 0.16 },
+  glow2: { position: "absolute", width: 280, height: 280, borderRadius: 140, top: -150, right: -120, opacity: 0.10 },
+
+  scroll: { paddingTop: 6, paddingBottom: 12, gap: 12 },
+  guestScroll: { paddingTop: 10, paddingBottom: 16, gap: 12 },
+
+  heroCard: { borderRadius: 24, borderWidth: 1, padding: 16 },
+  heroRow: { flexDirection: "row", gap: 14, alignItems: "center" },
+
+  avatarRing: { width: 92, height: 92, borderRadius: 26, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  avatarFrame: { width: 74, height: 74, borderRadius: 22, borderWidth: 1, overflow: "hidden", alignItems: "center", justifyContent: "center" },
   avatarImg: { width: "100%", height: "100%" },
-  cameraBadge: { position: 'absolute', right: 2, bottom: 2, width: 34, height: 34, borderRadius: 17, borderWidth: 3, justifyContent: 'center', alignItems: 'center' },
-  userName: { fontSize: 24, fontWeight: "900", marginTop: 15 },
-  pill: { flex: 1, borderWidth: 2, borderRadius: 16, paddingVertical: 12, alignItems: 'center' },
-  pillLabel: { fontSize: 11, fontWeight: "800", color: "#7A7A7A" },
-  pillValue: { fontSize: 20, fontWeight: "900", marginTop: 4 },
-  sectionTitle: { fontSize: 20, fontWeight: "900", marginBottom: 15 },
-  statCard: { flex: 1, padding: 20, borderRadius: 20, borderWidth: 2, alignItems: 'center' },
-  iconCircle: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
-  statValue: { fontSize: 20, fontWeight: "900" },
-  statLabel: { fontSize: 14, fontWeight: "700", marginTop: 2 },
-  logoutBtn: { padding: 16, borderRadius: 16, alignItems: "center", borderWidth: 2 }
+  cameraBadge: { position: "absolute", right: -4, bottom: -4, width: 30, height: 30, borderRadius: 15, borderWidth: 3, alignItems: "center", justifyContent: "center" },
+
+  name: { fontSize: 18, fontWeight: "900" },
+  email: { marginTop: 2, fontSize: 13, fontWeight: "700" },
+
+  actionRow: { marginTop: 12, flexDirection: "row", gap: 10, flexWrap: "wrap" },
+  actionBtn: { borderWidth: 1, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: 8 },
+  actionText: { fontSize: 13, fontWeight: "900" },
+
+  pillsRow: { marginTop: 14, flexDirection: "row", gap: 10 },
+  pill: { flex: 1, borderRadius: 18, borderWidth: 1, paddingVertical: 10, alignItems: "center" },
+  pillLabel: { fontSize: 11, fontWeight: "900", letterSpacing: 0.8 },
+  pillValue: { marginTop: 4, fontSize: 18, fontWeight: "900" },
+
+  panel: { borderRadius: 24, borderWidth: 1, padding: 16, gap: 12 },
+  sectionLabel: { fontSize: 12, fontWeight: "900", letterSpacing: 1.0 },
+
+  panelTitle: { fontSize: 14, fontWeight: "900" },
+  panelDesc: { marginTop: 2, fontSize: 12, fontWeight: "700", lineHeight: 16 },
+
+  progressHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" },
+  progressTrack: { height: 10, borderRadius: 999, overflow: "hidden" },
+  progressFill: { height: "100%", borderRadius: 999 },
+
+  miniRow: { marginTop: 4, flexDirection: "row", justifyContent: "space-between" },
+  miniLabel: { fontSize: 12, fontWeight: "800" },
+  miniValue: { fontSize: 12, fontWeight: "800" },
+  miniTrack: { height: 8, borderRadius: 999, overflow: "hidden" },
+  miniFill: { height: "100%", borderRadius: 999 },
+
+  grid: { flexDirection: "row", gap: 12 },
+  metricCard: { flex: 1, borderRadius: 20, borderWidth: 1, padding: 14 },
+  metricIcon: { width: 40, height: 40, borderRadius: 14, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  metricValue: { marginTop: 10, fontSize: 18, fontWeight: "900" },
+  metricTitle: { marginTop: 2, fontSize: 12, fontWeight: "800" },
+
+  dangerBtn: { height: 52, borderRadius: 18, borderWidth: 1, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 8 },
+  dangerText: { fontSize: 14, fontWeight: "900" },
+
+  heroIconRing: {
+    width: 86,
+    height: 86,
+    borderRadius: 26,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    alignSelf: "center",
+    marginBottom: 10,
+  },
+  heroIconTop: { width: 62, height: 62, borderRadius: 18, alignItems: "center", justifyContent: "center" },
+  heroTitle: { fontSize: 22, fontWeight: "900", textAlign: "center" },
+  heroDesc: { marginTop: 8, fontSize: 13, fontWeight: "700", textAlign: "center", lineHeight: 18 },
+
+  primaryShadow: { borderRadius: 18, paddingBottom: 4 },
+  primaryBtn: { height: 54, borderRadius: 18, alignItems: "center", justifyContent: "center" },
+  primaryText: { fontSize: 15, fontWeight: "900" },
+
+  secondaryBtn: { height: 50, borderRadius: 18, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  secondaryText: { fontSize: 15, fontWeight: "900" },
 });
