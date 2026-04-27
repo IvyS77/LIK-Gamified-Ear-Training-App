@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -6,7 +6,6 @@ import {
   Pressable,
   Alert,
   Platform,
-  useColorScheme,
   StyleSheet,
   KeyboardAvoidingView,
   ScrollView,
@@ -16,30 +15,36 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { auth } from "@/firebaseConfig";
+import { useTheme } from "@/hooks/use-theme";
+import { Glow } from "@/components/Glow";
+
+function friendlyAuthError(code: string): string {
+  switch (code) {
+    case "auth/user-not-found":
+    case "auth/wrong-password":
+    case "auth/invalid-credential":
+    case "auth/invalid-email":
+      return "Incorrect email or password.";
+    case "auth/too-many-requests":
+      return "Too many attempts. Please try again later.";
+    case "auth/network-request-failed":
+      return "No internet connection. Check your network.";
+    case "auth/user-disabled":
+      return "This account has been disabled.";
+    default:
+      return "Login failed. Please try again.";
+  }
+}
 
 export default function LoginScreen() {
   const router = useRouter();
-  const isDark = useColorScheme() === "dark";
-
-  const theme = useMemo(() => {
-    const accent = "#58CC02";
-    return {
-      bg: isDark ? "#0F1115" : "#F3F7FF",
-      card: isDark ? "#171A21" : "#FFFFFF",
-      text: isDark ? "#FFFFFF" : "#111827",
-      subText: isDark ? "rgba(255,255,255,0.72)" : "#6B7280",
-      border: isDark ? "rgba(255,255,255,0.10)" : "rgba(17,24,39,0.08)",
-      soft: isDark ? "rgba(255,255,255,0.04)" : "#F7FAFF",
-      accent,
-      primaryDepth: "#0F172A",
-      primaryTop: isDark ? "#FFFFFF" : "#111827",
-      primaryText: isDark ? "#000000" : "#FFFFFF",
-    };
-  }, [isDark]);
+  const theme = useTheme();
+  const { isDark } = theme;
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false); 
 
   const showMessage = (title: string, message: string) => {
     if (Platform.OS === "web") window.alert(`${title}\n\n${message}`);
@@ -56,9 +61,13 @@ export default function LoginScreen() {
     try {
       setSubmitting(true);
       await signInWithEmailAndPassword(auth, emailClean, password);
-      router.back();
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace("/(tabs)");
+      }
     } catch (error: any) {
-      showMessage("Login Error", error?.message ?? "Login failed.");
+      showMessage("Login Error", friendlyAuthError(error?.code ?? ""));
     } finally {
       setSubmitting(false);
     }
@@ -91,7 +100,7 @@ export default function LoginScreen() {
 
               <Text style={[styles.title, { color: theme.text }]}>Sign in</Text>
               <Text style={[styles.subTitle, { color: theme.subText }]}>
-                Welcome back. Let’s train your ear.
+                Welcome back. Let's train your ear.
               </Text>
 
               {/* Piano key form card */}
@@ -108,27 +117,43 @@ export default function LoginScreen() {
                   autoCorrect={false}
                   keyboardType="email-address"
                   textContentType="emailAddress"
-                  style={[
-                    styles.input,
-                    { backgroundColor: theme.card, borderColor: theme.border, color: theme.text },
-                  ]}
+                  returnKeyType="next"
+                  onSubmitEditing={() => { /* focus password */ }}
+                  style={[styles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
                 />
 
                 <Text style={[styles.label, { color: theme.subText }]}>Password</Text>
-                <TextInput
-                  placeholder="Enter password"
-                  placeholderTextColor={theme.subText}
-                  value={password}
-                  secureTextEntry
-                  onChangeText={setPassword}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  textContentType="password"
-                  style={[
-                    styles.input,
-                    { backgroundColor: theme.card, borderColor: theme.border, color: theme.text },
-                  ]}
-                />
+                {/* FIX 2: password visibility toggle */}
+                <View style={{ position: "relative" }}>
+                  <TextInput
+                    placeholder="Enter password"
+                    placeholderTextColor={theme.subText}
+                    value={password}
+                    secureTextEntry={!showPassword}
+                    onChangeText={setPassword}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    textContentType="password"
+                    returnKeyType="go"                        
+                    onSubmitEditing={handleLogin}
+                    style={[
+                      styles.input,
+                      styles.passwordInput,
+                      { backgroundColor: theme.card, borderColor: theme.border, color: theme.text },
+                    ]}
+                  />
+                  <Pressable
+                    onPress={() => setShowPassword(v => !v)}
+                    style={styles.eyeBtn}
+                    hitSlop={8}
+                  >
+                    <Ionicons
+                      name={showPassword ? "eye-off-outline" : "eye-outline"}
+                      size={20}
+                      color={theme.subText}
+                    />
+                  </Pressable>
+                </View>
 
                 <Pressable
                   onPress={handleLogin}
@@ -154,9 +179,7 @@ export default function LoginScreen() {
                     pressed && { opacity: 0.75 },
                   ]}
                 >
-                  <Text style={[styles.secondaryText, { color: theme.text }]}>
-                    Create account
-                  </Text>
+                  <Text style={[styles.secondaryText, { color: theme.text }]}>Create account</Text>
                 </Pressable>
               </View>
             </View>
@@ -167,37 +190,13 @@ export default function LoginScreen() {
   );
 }
 
-function Glow({ accent }: { accent: string }) {
-  return (
-    <View pointerEvents="none" style={styles.glowWrap}>
-      <View style={[styles.glow1, { backgroundColor: accent }]} />
-      <View style={[styles.glow2, { backgroundColor: accent }]} />
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   screen: { flex: 1, paddingHorizontal: 16 },
-
-  glowWrap: { ...StyleSheet.absoluteFillObject, overflow: "hidden" },
-  glow1: { position: "absolute", width: 340, height: 340, borderRadius: 170, top: -170, left: -100, opacity: 0.16 },
-  glow2: { position: "absolute", width: 280, height: 280, borderRadius: 140, top: -150, right: -120, opacity: 0.10 },
-
   scroll: { paddingTop: 10, paddingBottom: 24 },
-
   backBtn: { alignSelf: "flex-start", paddingVertical: 8 },
 
   heroCard: { borderRadius: 24, borderWidth: 1, padding: 16 },
-
-  iconRing: {
-    width: 72,
-    height: 72,
-    borderRadius: 22,
-    borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    alignSelf: "center",
-  },
+  iconRing: { width: 72, height: 72, borderRadius: 22, borderWidth: 1, alignItems: "center", justifyContent: "center", alignSelf: "center" },
   iconTop: { width: 52, height: 52, borderRadius: 16, alignItems: "center", justifyContent: "center" },
 
   title: { marginTop: 12, fontSize: 24, fontWeight: "900", textAlign: "center" },
@@ -208,6 +207,8 @@ const styles = StyleSheet.create({
 
   label: { fontSize: 12, fontWeight: "900", letterSpacing: 0.8, marginBottom: 6 },
   input: { borderWidth: 1, borderRadius: 16, paddingVertical: 12, paddingHorizontal: 14, marginBottom: 12, fontSize: 16, fontWeight: "700" },
+  passwordInput: { paddingRight: 46 },  // make room for eye icon
+  eyeBtn: { position: "absolute", right: 14, top: 13 },
 
   primaryShadow: { borderRadius: 18, paddingBottom: 4, marginTop: 6 },
   primaryBtn: { height: 54, borderRadius: 18, alignItems: "center", justifyContent: "center" },

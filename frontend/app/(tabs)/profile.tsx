@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Alert,
   Image,
@@ -7,11 +7,10 @@ import {
   ScrollView,
   Text,
   View,
-  useColorScheme,
   StyleSheet,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { signOut } from "firebase/auth";
@@ -19,6 +18,9 @@ import { doc, serverTimestamp, setDoc } from "firebase/firestore";
 
 import { auth, backend, uploadImage, db } from "@/firebaseConfig";
 import { useAuth, UserProfile } from "@/hooks/use-auth";
+import { useTheme } from "@/hooks/use-theme";
+import { Glow } from "@/components/Glow";
+import SpotifyBottomSheet from "@/components/SpotifyBottom";
 
 const DEMO_DAILY_XP_CAP = 50;
 
@@ -29,7 +31,6 @@ function xpToLevelUp(level: number) {
 function clamp01(x: number) {
   return Math.max(0, Math.min(1, x));
 }
-
 function formatErr(e: any) {
   const code = e?.code ? String(e.code) : "";
   const msg = e?.message ? String(e.message) : String(e);
@@ -38,40 +39,20 @@ function formatErr(e: any) {
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const isDark = useColorScheme() === "dark";
+  const theme = useTheme();           // ← was: inline useMemo block
+  const { isDark } = theme;
 
   const [user, profile] = useAuth();
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
   const [savingAvatar, setSavingAvatar] = useState(false);
+  const [spotifySheetVisible, setSpotifySheetVisible] = useState(false);
 
   useEffect(() => {
     if (profile?.profilePicture) setAvatarUri(profile.profilePicture);
   }, [profile?.profilePicture]);
 
-  const theme = useMemo(() => {
-    const accent = "#58CC02";
-    return {
-      bg: isDark ? "#0F1115" : "#F3F7FF",
-      card: isDark ? "#171A21" : "#FFFFFF",
-      text: isDark ? "#FFFFFF" : "#111827",
-      subText: isDark ? "rgba(255,255,255,0.72)" : "#6B7280",
-      border: isDark ? "rgba(255,255,255,0.10)" : "rgba(17,24,39,0.08)",
-      soft: isDark ? "rgba(255,255,255,0.04)" : "#F7FAFF",
-      accent,
-      danger: isDark ? "#FF6B6B" : "#DC2626",
-
-      primaryDepth: "#0F172A",
-      primaryTop: isDark ? "#FFFFFF" : "#111827",
-      primaryText: isDark ? "#000000" : "#FFFFFF",
-    };
-  }, [isDark]);
-
-  /**
-   * Save profile changes.
-   * - Firestore write is REQUIRED (persistence across logins)
-   * - Backend sync is best-effort (on iPhone real device localhost may fail)
-   */
-  async function updateProfile(update: Partial<UserProfile>) {
+  // FIX 1: wrapped in useCallback so reference is stable across renders
+  const updateProfile = useCallback(async (update: Partial<UserProfile>) => {
     const uid = user?.uid;
     if (!uid) {
       Alert.alert("Error", "Not signed in.");
@@ -102,7 +83,7 @@ export default function ProfileScreen() {
     } catch (e) {
       console.warn("Backend sync failed (ignored):", e);
     }
-  }
+  }, [user?.uid]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const pickAvatar = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -123,13 +104,11 @@ export default function ProfileScreen() {
 
     if (!result.canceled && result.assets?.[0]?.uri) {
       const localUri = result.assets[0].uri;
-
       const prev = avatarUri;
       setAvatarUri(localUri);
 
       try {
         setSavingAvatar(true);
-
         const downloadURL = await uploadImage(localUri);
         await updateProfile({ profilePicture: downloadURL });
         setAvatarUri(downloadURL);
@@ -142,11 +121,18 @@ export default function ProfileScreen() {
     }
   };
 
+  // FIX 2: signOut with proper error handling
+  const handleSignOut = async () => {
+    try {
+      await signOut(auth);
+    } catch (e) {
+      Alert.alert("Error", "Could not sign out. Please try again.");
+    }
+  };
+
   if (user === undefined) return null;
 
-  // -------------------------
-  // Guest profile (ONLY this part is visually adjusted)
-  // -------------------------
+  // ── Guest profile ──────────────────────────────────────────
   if (user === null) {
     return (
       <View style={[styles.screen, { backgroundColor: theme.bg }]}>
@@ -156,13 +142,7 @@ export default function ProfileScreen() {
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.guestScroll}
           >
-            <View
-              style={[
-                styles.heroCard,
-                { backgroundColor: theme.card, borderColor: theme.border },
-              ]}
-            >
-              {/* softer ring: no stark white, uses soft bg + subtle border + shadow */}
+            <View style={[styles.heroCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
               <View
                 style={[
                   styles.heroIconRing,
@@ -187,7 +167,6 @@ export default function ProfileScreen() {
                 Sign in to save XP, streaks, and your avatar across devices.
               </Text>
 
-              {/* slight spacing */}
               <View style={{ height: 18 }} />
 
               <Pressable
@@ -199,9 +178,7 @@ export default function ProfileScreen() {
                 ]}
               >
                 <View style={[styles.primaryBtn, { backgroundColor: theme.primaryTop }]}>
-                  <Text style={[styles.primaryText, { color: theme.primaryText }]}>
-                    Sign in
-                  </Text>
+                  <Text style={[styles.primaryText, { color: theme.primaryText }]}>Sign in</Text>
                 </View>
               </Pressable>
 
@@ -213,9 +190,7 @@ export default function ProfileScreen() {
                   pressed && { opacity: 0.75 },
                 ]}
               >
-                <Text style={[styles.secondaryText, { color: theme.text }]}>
-                  Create account
-                </Text>
+                <Text style={[styles.secondaryText, { color: theme.text }]}>Create account</Text>
               </Pressable>
             </View>
           </ScrollView>
@@ -224,11 +199,11 @@ export default function ProfileScreen() {
     );
   }
 
-  // -------------------------
-  // Signed-in profile (unchanged layout)
-  // -------------------------
+  // ── Signed-in profile ──────────────────────────────────────
   const displayName =
-    profile?.firstName ? `${profile.firstName} ${profile.lastName ?? ""}`.trim() : "Your profile";
+    profile?.firstName
+      ? `${profile.firstName} ${profile.lastName ?? ""}`.trim()
+      : "Your profile";
 
   const level = Number(profile?.level ?? 1);
   const currentXp = Number(profile?.currentXp ?? 0);
@@ -238,11 +213,12 @@ export default function ProfileScreen() {
   const progress01 = clamp01(need > 0 ? currentXp / need : 0);
   const xpRemaining = Math.max(0, need - currentXp);
 
-  const demoXpToday = Number((profile as any)?.demoXpToday ?? 0);
+  // FIX 3: removed "as any" — these fields should be in UserProfile type
+  // (add accuracy, totalSessions, demoXpToday to your UserProfile type in use-auth.ts)
+  const demoXpToday = Number(profile?.demoXpToday ?? 0);
   const demoCap01 = clamp01(DEMO_DAILY_XP_CAP > 0 ? demoXpToday / DEMO_DAILY_XP_CAP : 0);
-
-  const accuracy = (profile as any)?.accuracy;
-  const totalSessions = (profile as any)?.totalSessions;
+  const accuracy = profile?.accuracy;
+  const totalSessions = profile?.totalSessions;
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.bg }]}>
@@ -262,16 +238,10 @@ export default function ProfileScreen() {
                     )}
                   </View>
                 </View>
-
-                {/* soften the badge ring too (avoid stark white outline) */}
                 <View
                   style={[
                     styles.cameraBadge,
-                    {
-                      backgroundColor: theme.accent,
-                      borderColor: theme.soft,
-                      opacity: savingAvatar ? 0.6 : 1,
-                    },
+                    { backgroundColor: theme.accent, borderColor: theme.soft, opacity: savingAvatar ? 0.6 : 1 },
                   ]}
                 >
                   <Ionicons name={savingAvatar ? "cloud-upload" : "camera"} size={14} color="#FFFFFF" />
@@ -279,13 +249,8 @@ export default function ProfileScreen() {
               </Pressable>
 
               <View style={{ flex: 1 }}>
-                <Text style={[styles.name, { color: theme.text }]} numberOfLines={1}>
-                  {displayName}
-                </Text>
-                <Text style={[styles.email, { color: theme.subText }]} numberOfLines={1}>
-                  {user.email}
-                </Text>
-
+                <Text style={[styles.name, { color: theme.text }]} numberOfLines={1}>{displayName}</Text>
+                <Text style={[styles.email, { color: theme.subText }]} numberOfLines={1}>{user.email}</Text>
                 <View style={styles.actionRow}>
                   <Pressable
                     onPress={() => router.push("/(profile)/settings")}
@@ -311,33 +276,18 @@ export default function ProfileScreen() {
 
           <View style={[styles.panel, { backgroundColor: theme.card, borderColor: theme.border }]}>
             <Text style={[styles.sectionLabel, { color: theme.subText }]}>PROGRESS</Text>
-
             <View style={styles.progressHeader}>
               <Text style={[styles.panelTitle, { color: theme.text }]}>Level {level}</Text>
               <Text style={[styles.panelDesc, { color: theme.subText }]}>{xpRemaining} XP to level up</Text>
             </View>
-
-            <View
-              style={[
-                styles.progressTrack,
-                { backgroundColor: isDark ? "rgba(255,255,255,0.10)" : "rgba(17,24,39,0.08)" },
-              ]}
-            >
+            <View style={[styles.progressTrack, { backgroundColor: isDark ? "rgba(255,255,255,0.10)" : "rgba(17,24,39,0.08)" }]}>
               <View style={[styles.progressFill, { width: `${progress01 * 100}%`, backgroundColor: theme.accent }]} />
             </View>
-
             <View style={styles.miniRow}>
               <Text style={[styles.miniLabel, { color: theme.subText }]}>Demo cap</Text>
-              <Text style={[styles.miniValue, { color: theme.subText }]}>
-                {demoXpToday}/{DEMO_DAILY_XP_CAP} XP
-              </Text>
+              <Text style={[styles.miniValue, { color: theme.subText }]}>{demoXpToday}/{DEMO_DAILY_XP_CAP} XP</Text>
             </View>
-            <View
-              style={[
-                styles.miniTrack,
-                { backgroundColor: isDark ? "rgba(255,255,255,0.10)" : "rgba(17,24,39,0.08)" },
-              ]}
-            >
+            <View style={[styles.miniTrack, { backgroundColor: isDark ? "rgba(255,255,255,0.10)" : "rgba(17,24,39,0.08)" }]}>
               <View style={[styles.miniFill, { width: `${demoCap01 * 100}%`, backgroundColor: theme.accent }]} />
             </View>
           </View>
@@ -345,28 +295,33 @@ export default function ProfileScreen() {
           <View style={[styles.panel, { backgroundColor: theme.card, borderColor: theme.border }]}>
             <Text style={[styles.sectionLabel, { color: theme.subText }]}>STATS</Text>
             <View style={styles.grid}>
-              <MetricCard
-                title="Sessions"
-                value={totalSessions ?? "—"}
-                icon="time-outline"
-                theme={theme}
-                onPress={() => router.push("/(profile)/history")}
-              />
-              <MetricCard
-                title="Accuracy"
-                value={accuracy != null ? `${accuracy}%` : "—"}
-                icon="analytics-outline"
-                theme={theme}
-                onPress={() => router.push("/(profile)/accuracy")}
-              />
+              <MetricCard title="Sessions" value={totalSessions ?? "—"} icon="time-outline" theme={theme} onPress={() => router.push("/(profile)/history")} />
+              <MetricCard title="Accuracy" value={accuracy != null ? `${accuracy}%` : "—"} icon="analytics-outline" theme={theme} onPress={() => router.push("/(profile)/accuracy")} />
             </View>
           </View>
 
           <View style={[styles.panel, { backgroundColor: theme.card, borderColor: theme.border }]}>
             <Text style={[styles.sectionLabel, { color: theme.subText }]}>ACCOUNT</Text>
 
+            {/* Spotify connect button */}
             <Pressable
-              onPress={() => signOut(auth)}
+              onPress={() => setSpotifySheetVisible(true)}
+              style={({ pressed }) => [
+                styles.spotifyBtn,
+                { borderColor: theme.border, backgroundColor: theme.soft },
+                pressed && { opacity: 0.75 },
+              ]}
+            >
+              <MaterialCommunityIcons name="spotify" size={20} color="#1DB954" />
+              <Text style={[styles.spotifyText, { color: theme.text }]}>
+                {profile?.spotifyConnected ? "Spotify  ·  Connected" : "Connect Spotify"}
+              </Text>
+              <Ionicons name="chevron-forward" size={16} color={theme.subText} style={{ marginLeft: "auto" }} />
+            </Pressable>
+
+            {/* FIX 2: signOut now has error handling */}
+            <Pressable
+              onPress={handleSignOut}
               style={({ pressed }) => [
                 styles.dangerBtn,
                 {
@@ -384,15 +339,15 @@ export default function ProfileScreen() {
           <View style={{ height: 16 }} />
         </ScrollView>
       </SafeAreaView>
-    </View>
-  );
-}
 
-function Glow({ accent }: { accent: string }) {
-  return (
-    <View pointerEvents="none" style={styles.glowWrap}>
-      <View style={[styles.glow1, { backgroundColor: accent }]} />
-      <View style={[styles.glow2, { backgroundColor: accent }]} />
+      {/* Spotify bottom sheet */}
+      <SpotifyBottomSheet
+        visible={spotifySheetVisible}
+        onClose={() => setSpotifySheetVisible(false)}
+        uid={user?.uid}
+        spotifyConnected={profile?.spotifyConnected ?? false}
+        spotifyDisplayName={profile?.spotifyDisplayName}
+      />
     </View>
   );
 }
@@ -407,17 +362,11 @@ function Pill({ label, value, theme }: { label: string; value: number | string; 
 }
 
 function MetricCard({
-  title,
-  value,
-  icon,
-  onPress,
-  theme,
+  title, value, icon, onPress, theme,
 }: {
-  title: string;
-  value: string | number;
+  title: string; value: string | number;
   icon: keyof typeof Ionicons.glyphMap;
-  onPress: () => void;
-  theme: any;
+  onPress: () => void; theme: any;
 }) {
   return (
     <Pressable
@@ -430,23 +379,14 @@ function MetricCard({
       <View style={[styles.metricIcon, { backgroundColor: theme.card, borderColor: theme.border }]}>
         <Ionicons name={icon} size={18} color={theme.accent} />
       </View>
-      <Text style={[styles.metricValue, { color: theme.text }]} numberOfLines={1}>
-        {value}
-      </Text>
-      <Text style={[styles.metricTitle, { color: theme.subText }]} numberOfLines={1}>
-        {title}
-      </Text>
+      <Text style={[styles.metricValue, { color: theme.text }]} numberOfLines={1}>{value}</Text>
+      <Text style={[styles.metricTitle, { color: theme.subText }]} numberOfLines={1}>{title}</Text>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, paddingHorizontal: 16 },
-
-  glowWrap: { ...StyleSheet.absoluteFillObject, overflow: "hidden" },
-  glow1: { position: "absolute", width: 340, height: 340, borderRadius: 170, top: -170, left: -100, opacity: 0.16 },
-  glow2: { position: "absolute", width: 280, height: 280, borderRadius: 140, top: -150, right: -120, opacity: 0.10 },
-
   scroll: { paddingTop: 6, paddingBottom: 12, gap: 12 },
   guestScroll: { paddingTop: 10, paddingBottom: 16, gap: 12 },
 
@@ -472,7 +412,6 @@ const styles = StyleSheet.create({
 
   panel: { borderRadius: 24, borderWidth: 1, padding: 16, gap: 12 },
   sectionLabel: { fontSize: 12, fontWeight: "900", letterSpacing: 1.0 },
-
   panelTitle: { fontSize: 14, fontWeight: "900" },
   panelDesc: { marginTop: 2, fontSize: 12, fontWeight: "700", lineHeight: 16 },
 
@@ -495,16 +434,10 @@ const styles = StyleSheet.create({
   dangerBtn: { height: 52, borderRadius: 18, borderWidth: 1, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 8 },
   dangerText: { fontSize: 14, fontWeight: "900" },
 
-  heroIconRing: {
-    width: 86,
-    height: 86,
-    borderRadius: 26,
-    borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    alignSelf: "center",
-    marginBottom: 10,
-  },
+  spotifyBtn: { height: 52, borderRadius: 18, borderWidth: 1, alignItems: "center", flexDirection: "row", gap: 10, paddingHorizontal: 16 },
+  spotifyText: { fontSize: 14, fontWeight: "900" },
+
+  heroIconRing: { width: 86, height: 86, borderRadius: 26, borderWidth: 1, alignItems: "center", justifyContent: "center", alignSelf: "center", marginBottom: 10 },
   heroIconTop: { width: 62, height: 62, borderRadius: 18, alignItems: "center", justifyContent: "center" },
   heroTitle: { fontSize: 22, fontWeight: "900", textAlign: "center" },
   heroDesc: { marginTop: 8, fontSize: 13, fontWeight: "700", textAlign: "center", lineHeight: 18 },
@@ -512,7 +445,6 @@ const styles = StyleSheet.create({
   primaryShadow: { borderRadius: 18, paddingBottom: 4 },
   primaryBtn: { height: 54, borderRadius: 18, alignItems: "center", justifyContent: "center" },
   primaryText: { fontSize: 15, fontWeight: "900" },
-
   secondaryBtn: { height: 50, borderRadius: 18, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   secondaryText: { fontSize: 15, fontWeight: "900" },
 });
