@@ -211,13 +211,13 @@ export default function TrainingScreen() {
       accentDepth,
       danger: '#EF4444',
 
-      whiteTop: isDark ? '#1B2030' : '#FFFFFF',
-      whiteBorder: isDark ? 'rgba(255,255,255,0.10)' : '#D8E6FF',
-      whiteDepth: isDark ? 'rgba(255,255,255,0.08)' : '#D9DDE7',
+      whiteTop: '#FFFFFF',
+      whiteBorder: '#D0D0D0',
+      whiteDepth: '#B8B8B8',
 
-      blackTop: isDark ? '#0B0D13' : '#111827',
-      blackBorder: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.10)',
-      blackDepth: isDark ? '#000000' : '#0A0F1D',
+      blackTop: '#1a1a1a',
+      blackBorder: 'rgba(255,255,255,0.12)',
+      blackDepth: '#000000',
       blackText: '#FFFFFF',
 
       primaryDepth: '#0F172A',
@@ -448,7 +448,7 @@ export default function TrainingScreen() {
                             <Text
                               style={[
                                 styles.whiteKeyLabel,
-                                { color: selected ? '#FFFFFF' : theme.text },
+                                { color: selected ? '#FFFFFF' : '#333333' },
                               ]}
                             >
                               {note}
