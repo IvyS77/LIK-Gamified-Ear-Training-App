@@ -426,3 +426,62 @@ export default function ExploreScreen() {
               shadowOffset: { width: 0, height: 0 },
             }, pressed && { opacity: 0.8 }]}
           >
+            {sending
+              ? <ActivityIndicator size="small" color={theme.subText} />
+              : <Ionicons name="arrow-up" size={18} color={input.trim() && !sending ? "#000" : theme.subText} />
+            }
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    </KeyboardAvoidingView>
+  );
+}
+
+const s = StyleSheet.create({
+  screen: { flex: 1 },
+  scroll: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12, gap: 14 },
+  guestWrap: { flex: 1, alignItems: "center", justifyContent: "center", padding: 32 },
+  guestTitle: { fontSize: 20, fontWeight: "900", textAlign: "center", marginBottom: 8 },
+  guestSub: { fontSize: 13, fontWeight: "700", textAlign: "center", lineHeight: 20 },
+  titleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  title: { fontSize: 28, fontWeight: "900", letterSpacing: -0.5 },
+  titleSub: { fontSize: 12, fontWeight: "700", marginTop: 2 },
+  refreshBtn: { width: 34, height: 34, borderRadius: 17, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  coachCard: { borderRadius: 24, borderWidth: 1.5, overflow: "hidden" },
+  coachCardHead: { flexDirection: "row", alignItems: "center", gap: 10, padding: 16, paddingBottom: 12 },
+  sparkleWrap: { width: 36, height: 36, borderRadius: 11, alignItems: "center", justifyContent: "center" },
+  coachCardTitle: { fontSize: 15, fontWeight: "900" },
+  coachCardSub: { fontSize: 10, fontWeight: "700", marginTop: 1 },
+  loadingWrap: { alignItems: "center", padding: 28, gap: 10 },
+  loadingTxt: { fontSize: 12, fontWeight: "700" },
+  coachBody: { paddingHorizontal: 16, paddingBottom: 4 },
+  msgBox: { borderRadius: 16, borderWidth: 1, padding: 14, marginBottom: 12, flexDirection: "row", alignItems: "flex-start", gap: 10 },
+  msgEmoji: { fontSize: 22 },
+  msgText: { fontSize: 14, fontWeight: "700", lineHeight: 20, flex: 1 },
+  infoRow: { flexDirection: "row", alignItems: "flex-start", gap: 10, paddingVertical: 10, borderBottomWidth: 1 },
+  infoIcon: { width: 30, height: 30, borderRadius: 9, alignItems: "center", justifyContent: "center" },
+  infoLabel: { fontSize: 8, fontWeight: "900", letterSpacing: 1.2, marginBottom: 3 },
+  infoText: { fontSize: 13, fontWeight: "700", lineHeight: 17 },
+  miniBar: { margin: 16, marginTop: 12, paddingTop: 12, borderTopWidth: 1 },
+  miniBarLabel: { fontSize: 9, fontWeight: "900", letterSpacing: 1, marginBottom: 6 },
+  miniBarRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  miniTrack: { flex: 1, height: 6, borderRadius: 999, overflow: "hidden" },
+  miniFill: { height: "100%", borderRadius: 999 },
+  miniPct: { fontSize: 13, fontWeight: "900", width: 38, textAlign: "right" },
+  chatTitleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  chatDot: { width: 8, height: 8, borderRadius: 4 },
+  chatTitle: { fontSize: 16, fontWeight: "900" },
+  chips: { gap: 8, paddingRight: 16 },
+  chip: { borderRadius: 20, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 9, elevation: 3 },
+  chipTxt: { fontSize: 13, fontWeight: "700" },
+  bubbleWrap: { borderRadius: 20, borderWidth: 1, maxHeight: 280 },
+  bubbleContent: { padding: 14, gap: 10 },
+  bubble: { borderRadius: 18, padding: 12, maxWidth: "85%" },
+  bubbleUser: { alignSelf: "flex-end", borderBottomRightRadius: 4 },
+  bubbleAI: { alignSelf: "flex-start", borderWidth: 1, borderBottomLeftRadius: 4, elevation: 4 },
+  bubbleEmoji: { fontSize: 13, marginBottom: 4 },
+  bubbleTxt: { fontSize: 13, fontWeight: "700", lineHeight: 18 },
+  inputBar: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 10, borderTopWidth: 1 },
+  input: { flex: 1, borderRadius: 22, borderWidth: 1.5, paddingHorizontal: 16, paddingVertical: 11, fontSize: 14, fontWeight: "700" },
+  sendBtn: { width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center", elevation: 6 },
+});
