@@ -45,8 +45,8 @@ Keep responses short (2-4 sentences), warm, game-like. Reference their stats whe
 
 // ── Piano key decorator ───────────────────────────────────
 function PianoKeys({ isDark }: { isDark: boolean }) {
-  const WHITE = isDark ? "#1E2535" : "#F0F4FF";
-  const BLACK = isDark ? "#080C14" : "#111827";
+  const WHITE = "#fff";
+  const BLACK = "#000";
   const GLOW  = "#58CC02";
   const whiteKeys = 10;
   const blackPositions = [0, 1, 3, 4, 5, 7, 8];

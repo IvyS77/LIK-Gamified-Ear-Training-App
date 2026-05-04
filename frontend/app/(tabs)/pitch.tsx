@@ -39,10 +39,10 @@ export default function PitchLandingScreen() {
       softAccent: isDark ? 'rgba(88,204,2,0.18)' : 'rgba(88,204,2,0.12)',
       softPanel: isDark ? 'rgba(255,255,255,0.04)' : '#F7FAFF',
 
-      whiteKey: isDark ? '#202535' : '#FFFFFF',
-      whiteKeyBorder: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(17,24,39,0.12)',
-      blackKey: isDark ? '#0B0D13' : '#111827',
-      blackKeyBorder: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.10)',
+      whiteKey: '#FFFFFF',
+whiteKeyBorder: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(17,24,39,0.12)',
+blackKey: '#000000',
+blackKeyBorder: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.10)',
 
       primaryDepth: '#0F172A',
       primaryTop: isDark ? '#FFFFFF' : '#111827',
