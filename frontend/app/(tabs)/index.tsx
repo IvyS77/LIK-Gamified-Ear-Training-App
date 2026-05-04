@@ -6,8 +6,10 @@ import {
   TouchableOpacity,
   ScrollView,
   Dimensions,
+  useColorScheme,
+  SafeAreaView,
 } from "react-native";
-import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
+import Animated, { FadeInDown } from "react-native-reanimated";
 import {
   Flame,
   Zap,
@@ -28,8 +30,6 @@ import Svg, {
 import { loadProgressAsync, type UserProgress } from "@/lib/progression";
 import { getWeeklyChallenges, type WeeklyChallenge } from "@/lib/weekly";
 import XPBar from "../../components/XPBar";
-
-const { width: SCREEN_W } = Dimensions.get("window");
 
 // ── Lesson groups ─────────────────────────────────────────────────────────
 const LESSON_GROUPS = [
@@ -60,14 +60,15 @@ const LESSON_GROUPS = [
 ];
 
 // ── Dot grid background ───────────────────────────────────────────────────
-function DotGrid() {
+function DotGrid({ isDark }: { isDark: boolean }) {
   const { width, height } = Dimensions.get("window");
+  const dotColor = isDark ? "rgba(56,189,248,0.04)" : "rgba(17,24,39,0.05)";
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
       <Svg width={width} height={height}>
         <Defs>
           <SvgPattern id="dp" width="28" height="28" patternUnits="userSpaceOnUse">
-            <SvgCircle cx="2" cy="2" r="1.2" fill="rgba(56,189,248,0.04)" />
+            <SvgCircle cx="2" cy="2" r="1.2" fill={dotColor} />
           </SvgPattern>
         </Defs>
         <Rect x="0" y="0" width={width} height={height} fill="url(#dp)" />
@@ -77,7 +78,7 @@ function DotGrid() {
 }
 
 // ── Daily challenge strip ─────────────────────────────────────────────────
-function DailyChallenge({ streak }: { streak: number }) {
+function DailyChallenge({ streak, theme }: { streak: number; theme: any }) {
   const [challenges, setChallenges] = useState<WeeklyChallenge[]>([]);
   const router = useRouter();
 
@@ -90,22 +91,25 @@ function DailyChallenge({ streak }: { streak: number }) {
   const daysCompleted = challenges.filter((c) => c.completed).length;
 
   return (
-    <Animated.View entering={FadeInDown.delay(180).duration(320)} style={styles.dcCard}>
+    <Animated.View
+      entering={FadeInDown.delay(180).duration(320)}
+      style={[styles.dcCard, { backgroundColor: theme.card, borderColor: theme.accentBorder }]}
+    >
       {/* Card header */}
       <View style={styles.dcHeader}>
         <View style={styles.dcTitleRow}>
           <CalendarDays size={14} color="#58CC02" />
           <Text style={styles.dcTitle}>THIS WEEK</Text>
         </View>
-        <View style={styles.dcStreakPill}>
+        <View style={[styles.dcStreakPill, { backgroundColor: theme.pillBg }]}>
           <Flame size={12} color="#ef4444" />
-          <Text style={styles.dcStreakNum}>{streak}</Text>
-          <Text style={styles.dcStreakLabel}>day streak</Text>
+          <Text style={[styles.dcStreakNum, { color: theme.text }]}>{streak}</Text>
+          <Text style={[styles.dcStreakLabel, { color: theme.subText }]}>day streak</Text>
         </View>
       </View>
 
       {/* Progress bar */}
-      <View style={styles.weekProgressTrack}>
+      <View style={[styles.weekProgressTrack, { backgroundColor: theme.trackBg }]}>
         <View
           style={[
             styles.weekProgressFill,
@@ -113,7 +117,7 @@ function DailyChallenge({ streak }: { streak: number }) {
           ]}
         />
       </View>
-      <Text style={styles.weekProgressLabel}>
+      <Text style={[styles.weekProgressLabel, { color: theme.subText }]}>
         {daysCompleted}/7 days this week
       </Text>
 
@@ -124,23 +128,22 @@ function DailyChallenge({ streak }: { streak: number }) {
           const today = ch.isToday;
           const future = ch.locked;
 
-          let boxBg = "#0E1520";
-          let borderColor = "#1A2535";
-          let letterColor = "#2E4060";
+          let boxBg = theme.dayDefault;
+          let borderColor = theme.dayDefaultBorder;
+          let letterColor = theme.dayDefaultText;
 
           if (done) {
             boxBg = "#58CC02";
             borderColor = "#46A302";
             letterColor = "#fff";
           } else if (today) {
-            boxBg = "#121922";
+            boxBg = theme.dayToday;
             borderColor = "#58CC02";
             letterColor = "#58CC02";
           } else if (!future) {
-            // past, missed
-            boxBg = "#0B0F14";
-            borderColor = "#151D28";
-            letterColor = "#243040";
+            boxBg = theme.dayMissed;
+            borderColor = theme.dayMissedBorder;
+            letterColor = theme.dayMissedText;
           }
 
           return (
@@ -188,6 +191,29 @@ function DailyChallenge({ streak }: { streak: number }) {
 export default function HomePage() {
   const [progress, setProgress] = useState<UserProgress | null>(null);
   const router = useRouter();
+  const isDark = useColorScheme() === "dark";
+
+  const theme = {
+    bg: isDark ? "#0F1115" : "#F3F7FF",
+    card: isDark ? "#121922" : "#FFFFFF",
+    text: isDark ? "#FFFFFF" : "#111827",
+    subText: isDark ? "rgba(255,255,255,0.38)" : "#6B7280",
+    border: isDark ? "rgba(255,255,255,0.08)" : "rgba(17,24,39,0.08)",
+    accentBorder: isDark ? "rgba(88,204,2,0.2)" : "rgba(88,204,2,0.25)",
+    pillBg: isDark ? "#1A2535" : "#F3F4F6",
+    trackBg: isDark ? "#1A2535" : "#E5E7EB",
+    // Day box states
+    dayDefault: isDark ? "#0E1520" : "#F9FAFB",
+    dayDefaultBorder: isDark ? "#1A2535" : "#E5E7EB",
+    dayDefaultText: isDark ? "#2E4060" : "#D1D5DB",
+    dayToday: isDark ? "#121922" : "#F0FDF4",
+    dayMissed: isDark ? "#0B0F14" : "#F3F4F6",
+    dayMissedBorder: isDark ? "#151D28" : "#E5E7EB",
+    dayMissedText: isDark ? "#243040" : "#CBD5E1",
+    // Free practice border
+    freePlayBorder: isDark ? "rgba(250,204,21,0.18)" : "rgba(250,204,21,0.4)",
+    freePlayPillText: isDark ? "#0B0F14" : "#0B0F14",
+  };
 
   useEffect(() => {
     loadProgressAsync().then(setProgress);
@@ -201,29 +227,16 @@ export default function HomePage() {
       : 0;
 
   return (
-    <View style={styles.root}>
-      <DotGrid />
+    <View style={[styles.root, { backgroundColor: theme.bg }]}>
+      <DotGrid isDark={isDark} />
+      <SafeAreaView style={styles.safeArea}>
       <ScrollView
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── App header ─────────────────────────── */}
-        <Animated.View
-          entering={FadeInDown.delay(0).duration(280)}
-          style={styles.header}
-        >
-          <View>
-            <Text style={styles.appName}>EarQuest</Text>
-            <Text style={styles.appSub}>Train your musical ear</Text>
-          </View>
-          <View style={styles.headerBadge}>
-            <Text style={styles.headerBadgeText}>🎵</Text>
-          </View>
-        </Animated.View>
-
         {/* ── Stat pills ─────────────────────────── */}
         <Animated.View
-          entering={FadeInDown.delay(60).duration(280)}
+          entering={FadeInDown.delay(0).duration(280)}
           style={styles.statRow}
         >
           {[
@@ -232,21 +245,24 @@ export default function HomePage() {
             { icon: Trophy, value: `${progress.exercisesCompleted}`, label: "Done", color: "#a855f7" },
             { icon: Target, value: `${accuracy}%`, label: "Accuracy", color: "#3b82f6" },
           ].map((s) => (
-            <View key={s.label} style={styles.statPill}>
+            <View
+              key={s.label}
+              style={[styles.statPill, { backgroundColor: theme.card, borderColor: theme.border }]}
+            >
               <s.icon size={14} color={s.color} />
-              <Text style={styles.statNum}>{s.value}</Text>
-              <Text style={styles.statLabel}>{s.label}</Text>
+              <Text style={[styles.statNum, { color: theme.text }]}>{s.value}</Text>
+              <Text style={[styles.statLabel, { color: theme.subText }]}>{s.label}</Text>
             </View>
           ))}
         </Animated.View>
 
         {/* ── XP Bar ─────────────────────────────── */}
-        <Animated.View entering={FadeInDown.delay(110).duration(280)}>
+        <Animated.View entering={FadeInDown.delay(60).duration(280)}>
           <XPBar progress={progress} />
         </Animated.View>
 
         {/* ── Daily challenges ────────────────────── */}
-        <DailyChallenge streak={progress.streak} />
+        <DailyChallenge streak={progress.streak} theme={theme} />
 
         {/* ── Learn Notes header ──────────────────── */}
         <Animated.View
@@ -265,7 +281,7 @@ export default function HomePage() {
               entering={FadeInDown.delay(400 + i * 70).duration(280)}
             >
               <TouchableOpacity
-                style={styles.lessonCard}
+                style={[styles.lessonCard, { backgroundColor: theme.card, borderColor: theme.border }]}
                 activeOpacity={0.82}
                 onPress={() =>
                   router.push({
@@ -274,34 +290,18 @@ export default function HomePage() {
                   })
                 }
               >
-                {/* Left accent bar */}
                 <View style={[styles.lessonAccent, { backgroundColor: g.color }]} />
-
-                {/* Icon */}
-                <View
-                  style={[
-                    styles.lessonIconBox,
-                    { backgroundColor: g.color + "1C" },
-                  ]}
-                >
+                <View style={[styles.lessonIconBox, { backgroundColor: g.color + "1C" }]}>
                   <Text style={styles.lessonEmoji}>{g.emoji}</Text>
                 </View>
-
-                {/* Text */}
                 <View style={styles.lessonInfo}>
-                  <Text style={styles.lessonTitle}>{g.title}</Text>
-                  <Text style={styles.lessonSub}>{g.subtitle}</Text>
+                  <Text style={[styles.lessonTitle, { color: theme.text }]}>{g.title}</Text>
+                  <Text style={[styles.lessonSub, { color: theme.subText }]}>{g.subtitle}</Text>
                 </View>
-
-                {/* Badge + arrow */}
-                <View
-                  style={[styles.notesBadge, { backgroundColor: g.color + "1C" }]}
-                >
-                  <Text style={[styles.notesBadgeText, { color: g.color }]}>
-                    {g.notes}
-                  </Text>
+                <View style={[styles.notesBadge, { backgroundColor: g.color + "1C" }]}>
+                  <Text style={[styles.notesBadgeText, { color: g.color }]}>{g.notes}</Text>
                 </View>
-                <ChevronRight size={15} color="#444" />
+                <ChevronRight size={15} color={isDark ? "#444" : "#CBD5E1"} />
               </TouchableOpacity>
             </Animated.View>
           ))}
@@ -310,24 +310,25 @@ export default function HomePage() {
         {/* ── Free Practice ───────────────────────── */}
         <Animated.View entering={FadeInDown.delay(620).duration(280)}>
           <TouchableOpacity
-            style={styles.freePlayBtn}
+            style={[styles.freePlayBtn, { backgroundColor: theme.card, borderColor: theme.freePlayBorder }]}
             activeOpacity={0.85}
             onPress={() => router.push("/pitch")}
           >
             <View style={styles.freePlayLeft}>
               <Zap size={20} color="#facc15" strokeWidth={2.5} />
               <View>
-                <Text style={styles.freePlayTitle}>Free Practice</Text>
-                <Text style={styles.freePlaySub}>Train at your own pace</Text>
+                <Text style={[styles.freePlayTitle, { color: theme.text }]}>Free Practice</Text>
+                <Text style={[styles.freePlaySub, { color: theme.subText }]}>Train at your own pace</Text>
               </View>
             </View>
             <View style={styles.freePlayPill}>
-              <Text style={styles.freePlayPillText}>PLAY</Text>
+              <Text style={[styles.freePlayPillText, { color: theme.freePlayPillText }]}>PLAY</Text>
             </View>
           </TouchableOpacity>
         </Animated.View>
 
       </ScrollView>
+      </SafeAreaView>
     </View>
   );
 }
@@ -336,72 +337,39 @@ export default function HomePage() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: "#0B0F14",
+  },
+  safeArea: {
+    flex: 1,
   },
   scroll: {
     paddingHorizontal: 20,
-    paddingTop: 22,
+    paddingTop: 12,
     paddingBottom: 110,
     gap: 16,
   },
-
-  // Header
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  appName: {
-    fontSize: 30,
-    fontWeight: "900",
-    color: "#fff",
-    letterSpacing: -0.5,
-  },
-  appSub: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "rgba(255,255,255,0.35)",
-    marginTop: 2,
-  },
-  headerBadge: {
-    width: 46,
-    height: 46,
-    borderRadius: 15,
-    backgroundColor: "#121922",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerBadgeText: { fontSize: 22 },
 
   // Stats
   statRow: { flexDirection: "row", gap: 8 },
   statPill: {
     flex: 1,
-    backgroundColor: "#121922",
     borderRadius: 14,
     paddingVertical: 10,
     alignItems: "center",
     gap: 4,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
   },
-  statNum: { fontSize: 13, fontWeight: "900", color: "#fff" },
+  statNum: { fontSize: 13, fontWeight: "900" },
   statLabel: {
     fontSize: 9,
     fontWeight: "700",
-    color: "rgba(255,255,255,0.32)",
     textTransform: "uppercase",
     letterSpacing: 0.4,
   },
 
   // Daily challenge card
   dcCard: {
-    backgroundColor: "#121922",
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: "rgba(88,204,2,0.2)",
     padding: 16,
     gap: 12,
   },
@@ -426,23 +394,20 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    backgroundColor: "#1A2535",
     borderRadius: 10,
     paddingHorizontal: 8,
     paddingVertical: 4,
   },
-  dcStreakNum: { fontSize: 13, fontWeight: "900", color: "#fff" },
+  dcStreakNum: { fontSize: 13, fontWeight: "900" },
   dcStreakLabel: {
     fontSize: 10,
     fontWeight: "700",
-    color: "rgba(255,255,255,0.4)",
   },
 
   // Week progress bar
   weekProgressTrack: {
     height: 5,
     borderRadius: 999,
-    backgroundColor: "#1A2535",
     overflow: "hidden",
   },
   weekProgressFill: {
@@ -453,7 +418,6 @@ const styles = StyleSheet.create({
   weekProgressLabel: {
     fontSize: 11,
     fontWeight: "700",
-    color: "rgba(255,255,255,0.3)",
     marginTop: -4,
   },
 
@@ -531,10 +495,8 @@ const styles = StyleSheet.create({
   lessonCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#121922",
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
     overflow: "hidden",
     paddingRight: 14,
     gap: 12,
@@ -553,10 +515,9 @@ const styles = StyleSheet.create({
   },
   lessonEmoji: { fontSize: 22 },
   lessonInfo: { flex: 1 },
-  lessonTitle: { fontSize: 14, fontWeight: "900", color: "#fff" },
+  lessonTitle: { fontSize: 14, fontWeight: "900" },
   lessonSub: {
     fontSize: 11,
-    color: "rgba(255,255,255,0.38)",
     marginTop: 2,
     fontWeight: "600",
   },
@@ -572,10 +533,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#121922",
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "rgba(250,204,21,0.18)",
     padding: 16,
   },
   freePlayLeft: {
@@ -583,10 +542,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 12,
   },
-  freePlayTitle: { fontSize: 15, fontWeight: "800", color: "#fff" },
+  freePlayTitle: { fontSize: 15, fontWeight: "800" },
   freePlaySub: {
     fontSize: 11,
-    color: "rgba(255,255,255,0.38)",
     marginTop: 2,
     fontWeight: "600",
   },
@@ -599,6 +557,5 @@ const styles = StyleSheet.create({
   freePlayPillText: {
     fontSize: 13,
     fontWeight: "900",
-    color: "#0B0F14",
   },
 });
