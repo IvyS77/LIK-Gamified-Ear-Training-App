@@ -67,7 +67,7 @@ function DotGrid() {
       <Svg width={width} height={height}>
         <Defs>
           <SvgPattern id="dp" width="28" height="28" patternUnits="userSpaceOnUse">
-            <SvgCircle cx="2" cy="2" r="1.2" fill="rgba(255,255,255,0.055)" />
+            <SvgCircle cx="2" cy="2" r="1.2" fill="rgba(56,189,248,0.04)" />
           </SvgPattern>
         </Defs>
         <Rect x="0" y="0" width={width} height={height} fill="url(#dp)" />
@@ -124,23 +124,23 @@ function DailyChallenge({ streak }: { streak: number }) {
           const today = ch.isToday;
           const future = ch.locked;
 
-          let boxBg = "#12141e";
-          let borderColor = "#1e2130";
-          let letterColor = "#343650";
+          let boxBg = "#0E1520";
+          let borderColor = "#1A2535";
+          let letterColor = "#2E4060";
 
           if (done) {
             boxBg = "#58CC02";
             borderColor = "#46A302";
             letterColor = "#fff";
           } else if (today) {
-            boxBg = "#171A21";
+            boxBg = "#121922";
             borderColor = "#58CC02";
             letterColor = "#58CC02";
           } else if (!future) {
             // past, missed
-            boxBg = "#0f1118";
-            borderColor = "#1a1c28";
-            letterColor = "#2a2d40";
+            boxBg = "#0B0F14";
+            borderColor = "#151D28";
+            letterColor = "#243040";
           }
 
           return (
@@ -336,7 +336,7 @@ export default function HomePage() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: "#0F1115",
+    backgroundColor: "#0B0F14",
   },
   scroll: {
     paddingHorizontal: 20,
@@ -367,9 +367,9 @@ const styles = StyleSheet.create({
     width: 46,
     height: 46,
     borderRadius: 15,
-    backgroundColor: "#171A21",
+    backgroundColor: "#121922",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.07)",
+    borderColor: "rgba(255,255,255,0.08)",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -379,13 +379,13 @@ const styles = StyleSheet.create({
   statRow: { flexDirection: "row", gap: 8 },
   statPill: {
     flex: 1,
-    backgroundColor: "#171A21",
+    backgroundColor: "#121922",
     borderRadius: 14,
     paddingVertical: 10,
     alignItems: "center",
     gap: 4,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.07)",
+    borderColor: "rgba(255,255,255,0.08)",
   },
   statNum: { fontSize: 13, fontWeight: "900", color: "#fff" },
   statLabel: {
@@ -398,10 +398,10 @@ const styles = StyleSheet.create({
 
   // Daily challenge card
   dcCard: {
-    backgroundColor: "#131620",
+    backgroundColor: "#121922",
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: "rgba(88,204,2,0.18)",
+    borderColor: "rgba(88,204,2,0.2)",
     padding: 16,
     gap: 12,
   },
@@ -426,7 +426,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    backgroundColor: "#1e2030",
+    backgroundColor: "#1A2535",
     borderRadius: 10,
     paddingHorizontal: 8,
     paddingVertical: 4,
@@ -442,7 +442,7 @@ const styles = StyleSheet.create({
   weekProgressTrack: {
     height: 5,
     borderRadius: 999,
-    backgroundColor: "#1e2130",
+    backgroundColor: "#1A2535",
     overflow: "hidden",
   },
   weekProgressFill: {
@@ -503,7 +503,7 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
   },
   dcPlayBtnDone: {
-    backgroundColor: "#2a3d1e",
+    backgroundColor: "#1E3B14",
   },
   dcPlayText: {
     fontSize: 14,
@@ -531,10 +531,10 @@ const styles = StyleSheet.create({
   lessonCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#131620",
+    backgroundColor: "#121922",
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
+    borderColor: "rgba(255,255,255,0.08)",
     overflow: "hidden",
     paddingRight: 14,
     gap: 12,
@@ -572,10 +572,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#131620",
+    backgroundColor: "#121922",
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "rgba(250,204,21,0.15)",
+    borderColor: "rgba(250,204,21,0.18)",
     padding: 16,
   },
   freePlayLeft: {
@@ -599,6 +599,6 @@ const styles = StyleSheet.create({
   freePlayPillText: {
     fontSize: 13,
     fontWeight: "900",
-    color: "#0F1115",
+    color: "#0B0F14",
   },
 });
