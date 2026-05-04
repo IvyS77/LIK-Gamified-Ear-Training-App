@@ -8,8 +8,15 @@ import {
   Dimensions,
   useColorScheme,
   SafeAreaView,
+  Appearance,
 } from "react-native";
-import Animated, { FadeInDown } from "react-native-reanimated";
+import Animated, {
+  FadeInDown,
+  useSharedValue,
+  withSpring,
+  useAnimatedStyle,
+} from "react-native-reanimated";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   Flame,
   Zap,
@@ -187,6 +194,60 @@ function DailyChallenge({ streak, theme }: { streak: number; theme: any }) {
   );
 }
 
+// ── Theme toggle ─────────────────────────────────────────────────────────
+function ThemeToggle({ isDark, theme, onToggle }: { isDark: boolean; theme: any; onToggle: () => void }) {
+  const TRACK_W = 54;
+  const THUMB_SIZE = 24;
+  const PADDING = 3;
+  const travelX = TRACK_W - PADDING * 2 - THUMB_SIZE;
+
+  const translateX = useSharedValue(isDark ? travelX : 0);
+
+  useEffect(() => {
+    translateX.value = withSpring(isDark ? travelX : 0, {
+      damping: 18,
+      stiffness: 200,
+    });
+  }, [isDark]);
+
+  const thumbStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: translateX.value }],
+  }));
+
+  return (
+    <TouchableOpacity
+      onPress={onToggle}
+      activeOpacity={0.85}
+      style={[styles.toggleCard, { backgroundColor: theme.card, borderColor: theme.border }]}
+    >
+      <View style={styles.toggleLeft}>
+        <View style={[styles.toggleIconBox, { backgroundColor: isDark ? "#1A2535" : "#FEF9C3" }]}>
+          <Text style={styles.toggleEmoji}>{isDark ? "🌙" : "☀️"}</Text>
+        </View>
+        <View>
+          <Text style={[styles.toggleTitle, { color: theme.text }]}>Appearance</Text>
+          <Text style={[styles.toggleSub, { color: theme.subText }]}>
+            {isDark ? "Dark mode" : "Light mode"}
+          </Text>
+        </View>
+      </View>
+
+      <View style={[
+        styles.toggleTrack,
+        { backgroundColor: isDark ? "#58CC02" : "#D1D5DB", width: TRACK_W },
+      ]}>
+        <Animated.View
+          style={[
+            styles.toggleThumb,
+            { width: THUMB_SIZE, height: THUMB_SIZE, borderRadius: THUMB_SIZE / 2, left: PADDING },
+            thumbStyle,
+          ]}
+        />
+      </View>
+    </TouchableOpacity>
+  );
+}
+
 // ── Home screen ───────────────────────────────────────────────────────────
 export default function HomePage() {
   const [progress, setProgress] = useState<UserProgress | null>(null);
@@ -213,6 +274,12 @@ export default function HomePage() {
     // Free practice border
     freePlayBorder: isDark ? "rgba(250,204,21,0.18)" : "rgba(250,204,21,0.4)",
     freePlayPillText: isDark ? "#0B0F14" : "#0B0F14",
+  };
+
+  const toggleTheme = async () => {
+    const next = !isDark;
+    Appearance.setColorScheme(next ? "dark" : "light");
+    await AsyncStorage.setItem("earquest-theme", next ? "dark" : "light");
   };
 
   useEffect(() => {
@@ -325,6 +392,11 @@ export default function HomePage() {
               <Text style={[styles.freePlayPillText, { color: theme.freePlayPillText }]}>PLAY</Text>
             </View>
           </TouchableOpacity>
+        </Animated.View>
+
+        {/* ── Theme toggle ────────────────────────── */}
+        <Animated.View entering={FadeInDown.delay(700).duration(280)}>
+          <ThemeToggle isDark={isDark} theme={theme} onToggle={toggleTheme} />
         </Animated.View>
 
       </ScrollView>
@@ -557,5 +629,44 @@ const styles = StyleSheet.create({
   freePlayPillText: {
     fontSize: 13,
     fontWeight: "900",
+  },
+
+  // Theme toggle
+  toggleCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
+  },
+  toggleLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  toggleIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  toggleEmoji: { fontSize: 20 },
+  toggleTitle: { fontSize: 15, fontWeight: "800" },
+  toggleSub: { fontSize: 11, marginTop: 2, fontWeight: "600" },
+  toggleTrack: {
+    height: 30,
+    borderRadius: 15,
+    justifyContent: "center",
+  },
+  toggleThumb: {
+    position: "absolute",
+    backgroundColor: "#fff",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 3,
   },
 });
