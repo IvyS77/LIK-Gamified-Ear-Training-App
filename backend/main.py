@@ -180,7 +180,6 @@ async def submit_daily(request: SubmitDailyRequestBody):
         # TODO: make the daily task also reset streaks
         progress.streak += 1 # type: ignore
         progress.recentHistory.append(True)
-        progress.lastPlayedDate = datetime.datetime.now()
         response["isCorrect"] = True
         
         # award xp
@@ -189,15 +188,20 @@ async def submit_daily(request: SubmitDailyRequestBody):
         xpGained = max(1, round(BASE_XP_PER_CORRECT * mult)) # usually 4..7
         progress.xp += xpGained
         response["xpGained"] = xpGained
+
+        # update weekly completed days
+        weekday = datetime.date.today().weekday()
+        progress.weeklyCompletedDays.append(weekday)
     else:
         progress.recentHistory.append(False)
         response["isCorrect"] = False
 
+    # mark the daily as completed
+    progress.lastPlayedDate = datetime.datetime.now()
     if len(progress.recentHistory) > RECENT_WINDOW_MAX:
         progress.recentHistory.pop(0)
 
     # write back to the doc
-    print(progress)
     db.collection("progress").document(uid).set(progress.model_dump()) # type: ignore
 
     return response

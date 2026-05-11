@@ -14,6 +14,7 @@ def setup_scheduler():
 def daily_task():
     print("updating daily challenge")
     db.collection("exercises").document("daily").set({
-        "answer": random.choice(["A", "A#", "B", "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#"]),
+        # "answer": random.choice(["A", "A#", "B", "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#"]),
+        "answer": random.choice(["A", "B", "C", "D", "E", "F", "G"]),
         "date": datetime.datetime.now()
     })

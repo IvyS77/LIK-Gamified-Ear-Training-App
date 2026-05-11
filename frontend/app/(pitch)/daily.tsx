@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -15,7 +15,7 @@ import { Audio } from 'expo-av';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 
 import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
-import { db } from '@/firebaseConfig';
+import { backend, db } from '@/firebaseConfig';
 import { useAuth } from '@/hooks/use-auth';
 
 const MAX_LEVEL = 100;
@@ -187,7 +187,7 @@ async function applyAfterCheck(params: {
 
 // -------------------- Screen --------------------
 
-export default function TrainingScreen() {
+export default function DailyTrainingScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ mode?: string }>();
   const mode = (params?.mode ?? 'full').toLowerCase() === 'demo' ? 'demo' : 'full';
@@ -228,9 +228,19 @@ export default function TrainingScreen() {
 
   const [targetNote, setTargetNote] = useState<WhiteKey | ''>('');
   const [selectedNote, setSelectedNote] = useState<WhiteKey | null>(null);
-  const [state, setState] = useState<'idle' | 'answering' | 'result'>('idle');
+  const [state, setState] = useState<'fetching' | 'idle' | 'answering' | 'result'>('fetching');
 
   const [demoCapMessage, setDemoCapMessage] = useState<string>('');
+
+  useEffect(() => {
+    const ref = doc(db, 'exercises', "daily");
+    const daily = getDoc(ref)
+    const snap = getDoc(ref).then((doc) => {
+        const data = (doc.exists() ? doc.data() : {}) as any;
+        setTargetNote(data.answer)
+        setState('idle')
+    })
+  }, [])
 
   const playNote = async (note: WhiteKey) => {
     if (!note) return;
@@ -251,11 +261,10 @@ export default function TrainingScreen() {
 
   const startRound = () => {
     setDemoCapMessage('');
-    const next = WHITE_KEYS[Math.floor(Math.random() * WHITE_KEYS.length)];
-    setTargetNote(next);
     setSelectedNote(null);
     setState('answering');
-    playNote(next);
+    // @ts-ignore
+    playNote(targetNote);
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
   };
 
@@ -269,15 +278,37 @@ export default function TrainingScreen() {
     if (!user) return;
 
     // Logged-in users earn XP in BOTH demo and full; demo has daily cap.
-    const res = await applyAfterCheck({
-      uid: user.uid,
-      correct,
-      mode,
-    });
+    // const res = await applyAfterCheck({
+    //   uid: user.uid,
+    //   correct,
+    //   mode,
+    // });
 
-    if (mode === 'demo' && correct && res.capHit) {
-      setDemoCapMessage(`Demo XP cap reached (max ${DEMO_DAILY_XP_CAP} XP per day).`);
+    type SubmitDailyResponse = {
+      isCorrect: boolean,
+      xpGained: number,
+      success: boolean,
+      errorMessage: string
     }
+
+    const token = await user.getIdToken()
+    const res = await fetch(`${backend}/submit-daily`, {
+      method: "POST",
+      body: JSON.stringify({ authToken: token, answer: selectedNote }),
+      headers: { "Content-type": "application/json" },
+    });
+    const status: SubmitDailyResponse = await res.json()
+    if (!status.success) {
+      console.log(status.errorMessage)
+    }
+    else {
+      console.log(status)
+    }
+
+
+    // if (mode === 'demo' && correct && res.capHit) {
+    //   setDemoCapMessage(`Demo XP cap reached (max ${DEMO_DAILY_XP_CAP} XP per day).`);
+    // }
   };
 
   const isCorrect = selectedNote && selectedNote === targetNote;
@@ -340,6 +371,7 @@ export default function TrainingScreen() {
             {/* Listen / Start */}
             <View style={{ marginTop: 16, alignItems: 'center' }}>
               <Pressable
+                disabled={state === 'fetching'}
                 onPress={() =>
                   state === 'answering' ? playNote(targetNote as WhiteKey) : startRound()
                 }
@@ -356,7 +388,7 @@ export default function TrainingScreen() {
                     color="#FFFFFF"
                   />
                   <Text style={styles.listenText}>
-                    {state === 'answering' ? 'Listen' : 'Start'}
+                    {state === 'fetching' ? 'Loading' : state === 'answering' ? 'Listen' : 'Start'}
                   </Text>
                 </View>
               </Pressable>
@@ -509,7 +541,7 @@ export default function TrainingScreen() {
         {/* Bottom action */}
         <View style={styles.footer}>
           <Pressable
-            onPress={state === 'answering' ? onCheck : startRound}
+            onPress={state === 'result' ? router.back : state === 'answering' ? onCheck : startRound}
             disabled={state === 'answering' && !selectedNote}
             style={({ pressed }) => [
               styles.primaryShadow,

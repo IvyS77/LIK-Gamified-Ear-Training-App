@@ -1,34 +1,35 @@
-import React, { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  Dimensions,
-  useColorScheme,
-  SafeAreaView,
-} from "react-native";
-import Animated, { FadeInDown } from "react-native-reanimated";
-import {
-  Flame,
-  Zap,
-  Trophy,
-  Target,
-  BookOpen,
-  ChevronRight,
-  Check,
-  CalendarDays,
-} from "lucide-react-native";
-import { useRouter } from "expo-router";
-import Svg, {
-  Circle as SvgCircle,
-  Rect,
-  Defs,
-  Pattern as SvgPattern,
-} from "react-native-svg";
+import { useAuth } from "@/hooks/use-auth";
 import { loadProgressAsync, type UserProgress } from "@/lib/progression";
 import { getWeeklyChallenges, type WeeklyChallenge } from "@/lib/weekly";
+import { useRouter } from "expo-router";
+import {
+  BookOpen,
+  CalendarDays,
+  Check,
+  ChevronRight,
+  Flame,
+  Target,
+  Trophy,
+  Zap,
+} from "lucide-react-native";
+import React, { useEffect, useState } from "react";
+import {
+  Dimensions,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  useColorScheme,
+  View,
+} from "react-native";
+import Animated, { FadeInDown } from "react-native-reanimated";
+import Svg, {
+  Defs,
+  Rect,
+  Circle as SvgCircle,
+  Pattern as SvgPattern,
+} from "react-native-svg";
 import XPBar from "../../components/XPBar";
 
 // ── Lesson groups ─────────────────────────────────────────────────────────
@@ -81,14 +82,31 @@ function DotGrid({ isDark }: { isDark: boolean }) {
 function DailyChallenge({ streak, theme }: { streak: number; theme: any }) {
   const [challenges, setChallenges] = useState<WeeklyChallenge[]>([]);
   const router = useRouter();
+  const {progress} = useAuth()
+  const [todayDone, setTodayDone] = useState<Boolean>(false)
+  const [weeklyProgress, setWeeklyProgress] = useState<number[]>([])
 
   useEffect(() => {
     getWeeklyChallenges().then(setChallenges);
-  }, []);
+    if (progress?.lastPlayedDate) {
+      const dayLastPlayed = progress?.lastPlayedDate.toDate().getUTCDate()
+      const today = new Date().getUTCDate()
 
-  const todayChallenge = challenges.find((c) => c.isToday);
-  const todayDone = todayChallenge?.completed ?? false;
-  const daysCompleted = challenges.filter((c) => c.completed).length;
+      if (dayLastPlayed == today){
+        setTodayDone(true)
+      }
+    }
+    else {
+      setTodayDone(false)
+    }
+    setWeeklyProgress(progress?.weeklyCompletedDays ?? [])
+
+  }, [progress?.lastPlayedDate, progress?.weeklyCompletedDays]);
+
+  // const todayChallenge = challenges.find((c) => c.isToday);
+  // const todayDone = todayChallenge?.completed ?? false;
+  // const daysCompleted = challenges.filter((c) => c.completed).length;
+  const daysCompleted = weeklyProgress.length
 
   return (
     <Animated.View
@@ -123,8 +141,9 @@ function DailyChallenge({ streak, theme }: { streak: number; theme: any }) {
 
       {/* Day boxes */}
       <View style={styles.daysRow}>
-        {challenges.map((ch) => {
-          const done = ch.completed;
+        {challenges.map((ch, i) => {
+          // const done = ch.completed;
+          const done = weeklyProgress.includes(i)
           const today = ch.isToday;
           const future = ch.locked;
 
@@ -172,7 +191,7 @@ function DailyChallenge({ streak, theme }: { streak: number; theme: any }) {
       <TouchableOpacity
         style={[styles.dcPlayBtn, todayDone && styles.dcPlayBtnDone]}
         activeOpacity={0.85}
-        onPress={() => router.push("/pitch?daily=true")}
+        onPress={() => router.push("/daily")}
       >
         {todayDone ? (
           <Check size={17} color="#fff" strokeWidth={3} />
