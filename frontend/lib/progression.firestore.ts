@@ -3,6 +3,7 @@ import { db } from './firebase';
 import { getDefaultProgress, type UserProgress } from './progression';
 
 const DOC_PATH = (uid: string) => doc(db, 'users', uid, 'progress', 'current');
+// const DOC_PATH =  (uid: string) => doc(db, 'progress', 'uid')
 
 async function ensureDoc(uid: string): Promise<UserProgress> {
   const ref = DOC_PATH(uid);

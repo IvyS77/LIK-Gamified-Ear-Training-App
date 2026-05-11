@@ -16,7 +16,7 @@ import { useAuth } from "@/hooks/use-auth";
 
 export default function ProfileEditScreen() {
   const router = useRouter();
-  const [user, profile] = useAuth();
+  const {user, profile} = useAuth();
 
   // Local state for form inputs
   const [formData, setFormData] = useState({

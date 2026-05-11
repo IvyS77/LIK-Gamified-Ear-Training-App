@@ -149,7 +149,7 @@ async function sendChat(messages: Message[], stats: UserStats): Promise<string> 
 export default function ExploreScreen() {
   const theme = useTheme();
   const { isDark } = theme;
-  const [user] = useAuth();
+  const {user} = useAuth();
 
   const [stats, setStats]               = useState<UserStats | null>(null);
   const [coach, setCoach]               = useState<CoachData | null>(null);

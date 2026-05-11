@@ -42,7 +42,7 @@ export default function ProfileScreen() {
   const theme = useTheme();           // ← was: inline useMemo block
   const { isDark } = theme;
 
-  const [user, profile] = useAuth();
+  const {user, profile} = useAuth();
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
   const [savingAvatar, setSavingAvatar] = useState(false);
   const [spotifySheetVisible, setSpotifySheetVisible] = useState(false);

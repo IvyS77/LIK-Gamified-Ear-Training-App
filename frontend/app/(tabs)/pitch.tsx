@@ -11,13 +11,13 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@/hooks/use-auth';
 
 export default function PitchLandingScreen() {
   const router = useRouter();
   const isDark = useColorScheme() === 'dark';
 
-  const [user, profile] = useAuth();
+  const {user, profile} = useAuth();
   const isGuest = !user;
 
   const theme = useMemo(() => {

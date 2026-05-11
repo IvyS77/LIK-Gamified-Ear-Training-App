@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { loadProgressAsync, addXP as addXPLocal, type UserProgress, getDefaultProgress } from '../lib/progression';
+import { addXP as addXPLocal, getDefaultProgress, loadProgressAsync, type UserProgress } from '../lib/progression';
 import {
-  loadProgressFirestore,
   addXPFirestore,
+  loadProgressFirestore,
 } from '../lib/progression.firestore';
-import { useAuth } from './useAuth';
+import { useAuth } from './use-auth';
 
 export function useUserProgress() {
   const { user } = useAuth(); // adjust if your hook returns different shape

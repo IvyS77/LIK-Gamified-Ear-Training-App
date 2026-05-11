@@ -15,8 +15,8 @@ import { Audio } from 'expo-av';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 
 import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
-import { db } from '@/firebaseConfig';
-import { useAuth } from '@/hooks/useAuth';
+import { backend, db } from '@/firebaseConfig';
+import { useAuth } from '@/hooks/use-auth';
 
 const MAX_LEVEL = 100;
 
@@ -193,7 +193,7 @@ export default function TrainingScreen() {
   const mode = (params?.mode ?? 'full').toLowerCase() === 'demo' ? 'demo' : 'full';
 
   const isDark = useColorScheme() === 'dark';
-  const [user] = useAuth();
+  const {user} = useAuth();
   const isGuest = !user;
 
   const theme = useMemo(() => {
@@ -269,15 +269,37 @@ export default function TrainingScreen() {
     if (!user) return;
 
     // Logged-in users earn XP in BOTH demo and full; demo has daily cap.
-    const res = await applyAfterCheck({
-      uid: user.uid,
-      correct,
-      mode,
-    });
+    // const res = await applyAfterCheck({
+    //   uid: user.uid,
+    //   correct,
+    //   mode,
+    // });
 
-    if (mode === 'demo' && correct && res.capHit) {
-      setDemoCapMessage(`Demo XP cap reached (max ${DEMO_DAILY_XP_CAP} XP per day).`);
+    type SubmitDailyResponse = {
+      isCorrect: boolean,
+      xpGained: number,
+      success: boolean,
+      errorMessage: string
     }
+
+    const token = await user.getIdToken()
+    const res = await fetch(`${backend}/submit-daily`, {
+      method: "POST",
+      body: JSON.stringify({ authToken: token, answer: selectedNote }),
+      headers: { "Content-type": "application/json" },
+    });
+    const status: SubmitDailyResponse = await res.json()
+    if (!status.success) {
+      console.log(status.errorMessage)
+    }
+    else {
+      console.log(status)
+    }
+
+
+    // if (mode === 'demo' && correct && res.capHit) {
+    //   setDemoCapMessage(`Demo XP cap reached (max ${DEMO_DAILY_XP_CAP} XP per day).`);
+    // }
   };
 
   const isCorrect = selectedNote && selectedNote === targetNote;

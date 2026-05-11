@@ -1,6 +1,6 @@
 import { auth, db } from "@/firebaseConfig";
 import { onAuthStateChanged, User } from "firebase/auth";
-import { doc, onSnapshot, Unsubscribe } from "firebase/firestore";
+import { doc, onSnapshot, Timestamp, Unsubscribe } from "firebase/firestore";
 import { useEffect, useRef, useState } from "react";
 
 export type UserProfile = {
@@ -14,44 +14,88 @@ export type UserProfile = {
   profilePicture: string;
 };
 
-export function useAuth(): [User | undefined | null, UserProfile | undefined] {
+export type UserProgress = {
+  xp: number;
+  level: number;
+  streak: number;
+  lastPlayedDate: Timestamp;
+  exercisesCompleted: number;
+  correctAnswers: number;
+  totalAnswers: number;
+  weeklyCompletedDays: number[];
+}
+
+export type UseAuthInfo = {
+  user: User | null | undefined,
+  profile: UserProfile | undefined,
+  progress: UserProgress | undefined
+}
+
+export function useAuth(): UseAuthInfo {
   const [user, setUser] = useState<undefined | null | User>(undefined);
   const [profile, setProfile] = useState<UserProfile | undefined>(undefined);
-  const unsub = useRef<Unsubscribe | undefined>(undefined);
+  const [progress, setProgress] = useState<UserProgress | undefined>(undefined)
+  const unsubProfile = useRef<Unsubscribe | undefined>(undefined);
+  const unsubProgress = useRef<Unsubscribe | undefined>(undefined)
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (userData) => {
       // IMPORTANT: clean up previous listener
-      unsub.current?.();
-      unsub.current = undefined;
-      setProfile(undefined);
+      clearListeners()
 
       if (userData) {
         setUser(userData);
         const uid = userData.uid;
-
-        unsub.current = onSnapshot(
-          doc(db, "users", uid),
-          (snap) => {
-            setProfile(snap.data() as UserProfile);
-          },
-          (err) => {
-            // This is where your screenshot error will land (permission-denied, etc.)
-            console.warn("Firestore snapshot listener error:", err);
-            // Optional: keep user signed-in but show no profile
-            setProfile(undefined);
-          }
-        );
-      } else {
+        listenProfile(uid)
+        listenProgress(uid)
+      } 
+      else {
         setUser(null);
+        setProfile(undefined)
+        setProgress(undefined)
       }
     });
 
     return () => {
-      unsub.current?.();
+      clearListeners()
       unsubscribeAuth();
     };
   }, []);
 
-  return [user, profile];
+  return {
+    "user": user, 
+    "profile": profile, 
+    "progress": progress
+  };
+
+  function clearListeners() {
+    unsubProfile.current?.()
+    unsubProgress.current?.()
+  }
+
+  function listenProfile(uid: string) {
+    unsubProfile.current = onSnapshot( doc(db, "users", uid),
+      (snap) => {
+        setProfile(snap.data() as UserProfile);
+      },
+      (err) => {
+        // This is where your screenshot error will land (permission-denied, etc.)
+        console.warn("Firestore snapshot listener error on profile doc:", err);
+        // Optional: keep user signed-in but show no profile
+        setProfile(undefined);
+      }
+    );
+  }
+
+  function listenProgress(uid: string) {
+    unsubProgress.current = onSnapshot(
+      doc(db, "progress", uid),
+      (snap) => {
+        setProgress(snap.data() as UserProgress);
+      },
+      (err) => {
+        console.warn("Firestore snapshot listener error on progress doc:", err);
+      }
+    )
+  }
 }
