@@ -18,7 +18,7 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 
-export const backend = "http://localhost:8000";
+export const backend = "https://lik-gamified-ear-training-app.onrender.com";
 
 /**
  * Uploads an image to Firebase Storage using XMLHttpRequest for React Native compatibility.
