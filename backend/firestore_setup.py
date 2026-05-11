@@ -10,7 +10,14 @@ from pydantic import BaseModel
 load_dotenv()
 
 # Init Firebase Admin once
-cred = credentials.Certificate(os.environ["PATH_TO_FIREBASE_ADMIN_KEY"])
+# cred = credentials.Certificate(os.environ["PATH_TO_FIREBASE_ADMIN_KEY"])
+cred = credentials.Certificate({
+    "type": "service_account",
+    "project_id": os.environ["PROJECT_ID"],
+    "private_key": os.environ["PRIVATE_KEY"].replace("\\n", "\n"),
+    "client_email": os.environ["CLIENT_EMAIL"],
+    "token_uri": "https://oauth2.googleapis.com/token",
+})
 if not firebase_admin._apps:
     firebase_admin.initialize_app(
         cred,
