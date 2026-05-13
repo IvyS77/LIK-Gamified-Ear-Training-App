@@ -1,7 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
-import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { getDownloadURL, getStorage, ref, uploadBytes } from "firebase/storage";
 
 const firebaseConfig = {
   apiKey: "AIzaSyB1jOfSnwiSLdQLcs63vFzt7NJi58i0p3Q",
@@ -18,7 +18,7 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 
-export const backend = "http://localhost:8000";
+export const backend = "https://lik-gamified-ear-training-app.onrender.com";
 
 /**
  * Uploads an image to Firebase Storage using XMLHttpRequest for React Native compatibility.
