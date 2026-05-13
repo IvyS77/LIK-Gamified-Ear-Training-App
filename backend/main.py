@@ -26,6 +26,9 @@ async def lifespan(app: FastAPI):
     print("shutting down scheduler")
 app = FastAPI(lifespan=lifespan)
 origins = [
+    "http://localhost:8081",
+    "http://127.0.0.1:8081",
+    "https://lik-gamified-ear-training-app.onrender.com",
     "*"
 ]
 app.add_middleware(
