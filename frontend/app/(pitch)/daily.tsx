@@ -48,6 +48,17 @@ const BLACK_KEYS: Array<{ label: string; afterWhiteIndex: number }> = [
 ];
 
 let currentSound: Audio.Sound | null = null;
+let audioModeReady = false;
+
+async function ensureAudioMode() {
+  if (audioModeReady) return;
+  await Audio.setAudioModeAsync({
+    playsInSilentModeIOS: true,
+    allowsRecordingIOS: false,
+    staysActiveInBackground: false,
+  });
+  audioModeReady = true;
+}
 
 // -------------------- Helpers (leveling + dates) --------------------
 
@@ -233,18 +244,18 @@ export default function DailyTrainingScreen() {
   const [demoCapMessage, setDemoCapMessage] = useState<string>('');
 
   useEffect(() => {
-    const ref = doc(db, 'exercises', "daily");
-    const daily = getDoc(ref)
-    const snap = getDoc(ref).then((doc) => {
-        const data = (doc.exists() ? doc.data() : {}) as any;
-        setTargetNote(data.answer)
-        setState('idle')
-    })
+    const ref = doc(db, 'exercises', 'daily');
+    getDoc(ref).then((snap) => {
+      const data = (snap.exists() ? snap.data() : {}) as any;
+      setTargetNote(data.answer);
+      setState('idle');
+    });
   }, [])
 
   const playNote = async (note: WhiteKey) => {
     if (!note) return;
     try {
+      await ensureAudioMode();
       if (currentSound) {
         await currentSound.unloadAsync();
         currentSound = null;

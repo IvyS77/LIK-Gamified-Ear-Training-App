@@ -48,6 +48,17 @@ const BLACK_KEYS: Array<{ label: string; afterWhiteIndex: number }> = [
 ];
 
 let currentSound: Audio.Sound | null = null;
+let audioModeReady = false;
+
+async function ensureAudioMode() {
+  if (audioModeReady) return;
+  await Audio.setAudioModeAsync({
+    playsInSilentModeIOS: true,
+    allowsRecordingIOS: false,
+    staysActiveInBackground: false,
+  });
+  audioModeReady = true;
+}
 
 // -------------------- Helpers (leveling + dates) --------------------
 
@@ -235,6 +246,7 @@ export default function TrainingScreen() {
   const playNote = async (note: WhiteKey) => {
     if (!note) return;
     try {
+      await ensureAudioMode();
       if (currentSound) {
         await currentSound.unloadAsync();
         currentSound = null;
