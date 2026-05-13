@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   View,
   Text,
@@ -7,67 +7,88 @@ import {
   Alert,
   Platform,
   StyleSheet,
+  ActivityIndicator,
   KeyboardAvoidingView,
   ScrollView,
 } from "react-native";
-import { signInWithEmailAndPassword } from "firebase/auth";
 import { useRouter } from "expo-router";
+import { createUserWithEmailAndPassword } from "firebase/auth";
+import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { auth, db } from "@/firebaseConfig";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { auth } from "@/firebaseConfig";
-import { useTheme } from "@/hooks/use-theme";
+import { useTheme } from "@/hooks/use-theme"; 
 import { Glow } from "@/components/Glow";
 
-function friendlyAuthError(code: string): string {
+function friendlySignupError(code: string): string {
   switch (code) {
-    case "auth/user-not-found":
-    case "auth/wrong-password":
-    case "auth/invalid-credential":
+    case "auth/email-already-in-use":
+      return "An account with this email already exists. Try signing in instead.";
     case "auth/invalid-email":
-      return "Incorrect email or password.";
-    case "auth/too-many-requests":
-      return "Too many attempts. Please try again later.";
+      return "Please enter a valid email address.";
+    case "auth/weak-password":
+      return "Password must be at least 6 characters.";
     case "auth/network-request-failed":
       return "No internet connection. Check your network.";
-    case "auth/user-disabled":
-      return "This account has been disabled.";
     default:
-      return "Login failed. Please try again.";
+      return "Could not create account. Please try again.";
   }
 }
 
-export default function LoginScreen() {
+export default function SignupScreen() {
   const router = useRouter();
   const theme = useTheme();
   const { isDark } = theme;
 
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [submitting, setSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false); 
+  const [submitting, setSubmitting] = useState(false);
 
-  const showMessage = (title: string, message: string) => {
-    if (Platform.OS === "web") window.alert(`${title}\n\n${message}`);
-    else Alert.alert(title, message);
-  };
+  const lastNameRef = useRef<TextInput>(null);
+  const emailRef = useRef<TextInput>(null);
+  const passwordRef = useRef<TextInput>(null);
 
-  const handleLogin = async () => {
+  const handleSignup = async () => {
     const emailClean = email.trim();
-    if (!emailClean || !password) {
-      showMessage("Missing fields", "Please enter both email and password.");
+    const firstClean = firstName.trim();
+
+    if (!firstClean || !emailClean || !password) {
+      Alert.alert("Missing fields", "Please fill in all required fields.");
+      return;
+    }
+
+    if (password.length < 6) {
+      Alert.alert("Weak password", "Password must be at least 6 characters.");
       return;
     }
 
     try {
       setSubmitting(true);
-      await signInWithEmailAndPassword(auth, emailClean, password);
-      if (router.canGoBack()) {
-        router.back();
-      } else {
-        router.replace("/(tabs)");
-      }
-    } catch (error: any) {
-      showMessage("Login Error", friendlyAuthError(error?.code ?? ""));
+      const cred = await createUserWithEmailAndPassword(auth, emailClean, password);
+      const uid = cred.user.uid;
+
+      await setDoc(
+        doc(db, "users", uid),
+        {
+          uid,
+          email: emailClean,
+          firstName: firstClean,
+          lastName: lastName.trim(),
+          level: 1,
+          currentXp: 0,
+          streak: 0,
+          profilePicture: "",
+          createdAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      router.replace("/(tabs)/profile");
+    } catch (e: any) {
+      Alert.alert("Signup Error", friendlySignupError(e?.code ?? ""));
     } finally {
       setSubmitting(false);
     }
@@ -78,10 +99,7 @@ export default function LoginScreen() {
       <SafeAreaView style={{ flex: 1 }}>
         <Glow accent={theme.accent} />
 
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={{ flex: 1 }}
-        >
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
           <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
             <Pressable
               onPress={() => router.back()}
@@ -94,22 +112,49 @@ export default function LoginScreen() {
             <View style={[styles.heroCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
               <View style={[styles.iconRing, { borderColor: theme.border, backgroundColor: theme.soft }]}>
                 <View style={[styles.iconTop, { backgroundColor: theme.accent }]}>
-                  <Ionicons name="log-in" size={22} color="#FFFFFF" />
+                  <Ionicons name="person-add" size={22} color="#FFFFFF" />
                 </View>
               </View>
 
-              <Text style={[styles.title, { color: theme.text }]}>Sign in</Text>
+              <Text style={[styles.title, { color: theme.text }]}>Create account</Text>
               <Text style={[styles.subTitle, { color: theme.subText }]}>
-                Welcome back. Let's train your ear.
+                Your progress will be saved across devices.
               </Text>
 
-              {/* Piano key form card */}
               <View style={[styles.pianoCard, { backgroundColor: theme.soft, borderColor: theme.border }]}>
                 <View style={[styles.blackNotch, { backgroundColor: isDark ? "#0B0D13" : "#111827" }]} />
 
+                <Text style={[styles.label, { color: theme.subText }]}>First name</Text>
+                <TextInput
+                  placeholder="First name"
+                  placeholderTextColor={theme.subText}
+                  value={firstName}
+                  onChangeText={setFirstName}
+                  autoCapitalize="words"
+                  textContentType="givenName"
+                  returnKeyType="next"                              // FIX 5
+                  onSubmitEditing={() => lastNameRef.current?.focus()}
+                  style={[styles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
+                />
+
+                <Text style={[styles.label, { color: theme.subText }]}>Last name</Text>
+                <TextInput
+                  ref={lastNameRef}
+                  placeholder="Last name (optional)"
+                  placeholderTextColor={theme.subText}
+                  value={lastName}
+                  onChangeText={setLastName}
+                  autoCapitalize="words"
+                  textContentType="familyName"
+                  returnKeyType="next"                              // FIX 5
+                  onSubmitEditing={() => emailRef.current?.focus()}
+                  style={[styles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
+                />
+
                 <Text style={[styles.label, { color: theme.subText }]}>Email</Text>
                 <TextInput
-                  placeholder="Enter email"
+                  ref={emailRef}
+                  placeholder="Email"
                   placeholderTextColor={theme.subText}
                   value={email}
                   onChangeText={setEmail}
@@ -117,25 +162,26 @@ export default function LoginScreen() {
                   autoCorrect={false}
                   keyboardType="email-address"
                   textContentType="emailAddress"
-                  returnKeyType="next"
-                  onSubmitEditing={() => { /* focus password */ }}
+                  returnKeyType="next"                              // FIX 5
+                  onSubmitEditing={() => passwordRef.current?.focus()}
                   style={[styles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
                 />
 
                 <Text style={[styles.label, { color: theme.subText }]}>Password</Text>
-                {/* FIX 2: password visibility toggle */}
+                {/* FIX 4: password show/hide toggle */}
                 <View style={{ position: "relative" }}>
                   <TextInput
-                    placeholder="Enter password"
+                    ref={passwordRef}
+                    placeholder="Password (min 6 characters)"
                     placeholderTextColor={theme.subText}
                     value={password}
-                    secureTextEntry={!showPassword}
                     onChangeText={setPassword}
+                    secureTextEntry={!showPassword}
                     autoCapitalize="none"
                     autoCorrect={false}
-                    textContentType="password"
-                    returnKeyType="go"                        
-                    onSubmitEditing={handleLogin}
+                    textContentType="newPassword"
+                    returnKeyType="go"                              // FIX 5
+                    onSubmitEditing={handleSignup}
                     style={[
                       styles.input,
                       styles.passwordInput,
@@ -156,7 +202,7 @@ export default function LoginScreen() {
                 </View>
 
                 <Pressable
-                  onPress={handleLogin}
+                  onPress={handleSignup}
                   disabled={submitting}
                   style={({ pressed }) => [
                     styles.primaryShadow,
@@ -165,21 +211,25 @@ export default function LoginScreen() {
                   ]}
                 >
                   <View style={[styles.primaryBtn, { backgroundColor: theme.primaryTop }]}>
-                    <Text style={[styles.primaryText, { color: theme.primaryText }]}>
-                      {submitting ? "Signing in..." : "Sign in"}
-                    </Text>
+                    {submitting ? (
+                      <ActivityIndicator color={theme.primaryText} />
+                    ) : (
+                      <Text style={[styles.primaryText, { color: theme.primaryText }]}>Create account</Text>
+                    )}
                   </View>
                 </Pressable>
 
                 <Pressable
-                  onPress={() => router.push("/(auth)/signup")}
+                  onPress={() => router.push("/(auth)/login")}
                   style={({ pressed }) => [
                     styles.secondaryBtn,
                     { borderColor: theme.border, backgroundColor: theme.card },
                     pressed && { opacity: 0.75 },
                   ]}
                 >
-                  <Text style={[styles.secondaryText, { color: theme.text }]}>Create account</Text>
+                  <Text style={[styles.secondaryText, { color: theme.text }]}>
+                    Already have an account? Sign in
+                  </Text>
                 </Pressable>
               </View>
             </View>
@@ -207,13 +257,13 @@ const styles = StyleSheet.create({
 
   label: { fontSize: 12, fontWeight: "900", letterSpacing: 0.8, marginBottom: 6 },
   input: { borderWidth: 1, borderRadius: 16, paddingVertical: 12, paddingHorizontal: 14, marginBottom: 12, fontSize: 16, fontWeight: "700" },
-  passwordInput: { paddingRight: 46 },  // make room for eye icon
+  passwordInput: { paddingRight: 46 },
   eyeBtn: { position: "absolute", right: 14, top: 13 },
 
   primaryShadow: { borderRadius: 18, paddingBottom: 4, marginTop: 6 },
   primaryBtn: { height: 54, borderRadius: 18, alignItems: "center", justifyContent: "center" },
   primaryText: { fontSize: 15, fontWeight: "900" },
 
-  secondaryBtn: { height: 50, borderRadius: 18, borderWidth: 1, alignItems: "center", justifyContent: "center", marginTop: 10 },
-  secondaryText: { fontSize: 15, fontWeight: "900" },
+  secondaryBtn: { borderRadius: 18, borderWidth: 1, paddingVertical: 14, paddingHorizontal: 14, alignItems: "center", justifyContent: "center", marginTop: 10 },
+  secondaryText: { fontSize: 13, fontWeight: "900", textAlign: "center" },
 });

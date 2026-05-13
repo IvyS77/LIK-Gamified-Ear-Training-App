@@ -1,298 +1,375 @@
-import { useMemo, useState, useEffect } from 'react';
+import React, { useMemo } from 'react';
 import {
   View,
   Text,
+  StyleSheet,
   Pressable,
-  ActivityIndicator,
+  SafeAreaView,
+  StatusBar,
   useColorScheme,
+  ScrollView,
 } from 'react-native';
-import { ThemedView } from '@/components/themed-view';
-import { ThemedText } from '@/components/themed-text';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { useAuth } from '@/hooks/use-auth';
 
-type GameState = 'answering' | 'submitting' | 'result';
+export default function PitchLandingScreen() {
+  const router = useRouter();
+  const isDark = useColorScheme() === 'dark';
 
-const NOTE_OPTIONS = ['C', 'D', 'E', 'F', 'G', 'A', 'B'] as const;
+  const {user, profile} = useAuth();
+  const isGuest = !user;
 
-type Difficulty = 'Easy' | 'Medium' | 'Hard';
+  const theme = useMemo(() => {
+    const accent = '#58CC02';
 
-const DIFFICULTY_SECONDS: Record<Difficulty, number> = {
-  Easy: 10,
-  Medium: 6,
-  Hard: 3,
-};
+    const bg = isDark ? '#0F1115' : '#F3F7FF';
+    const card = isDark ? '#171A21' : '#FFFFFF';
+    const text = isDark ? '#FFFFFF' : '#111827';
+    const subText = isDark ? 'rgba(255,255,255,0.72)' : '#6B7280';
+    const border = isDark ? 'rgba(255,255,255,0.10)' : 'rgba(17,24,39,0.08)';
 
-function randomChoice<T>(arr: readonly T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)];
-}
+    return {
+      bg,
+      card,
+      text,
+      subText,
+      border,
+      accent,
+      softAccent: isDark ? 'rgba(88,204,2,0.18)' : 'rgba(88,204,2,0.12)',
+      softPanel: isDark ? 'rgba(255,255,255,0.04)' : '#F7FAFF',
 
-export default function PitchScreen() {
-  const scheme = useColorScheme();
-  const isDark = scheme === 'dark';
+      whiteKey: isDark ? '#202535' : '#FFFFFF',
+      whiteKeyBorder: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(17,24,39,0.12)',
+      blackKey: isDark ? '#0B0D13' : '#111827',
+      blackKeyBorder: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.10)',
 
-  // Duolingo-style colors
-  const colors = {
-    pageBg: isDark ? '#121212' : '#F5F6FA',
-    cardBg: isDark ? '#1E1E1E' : '#FFFFFF',
-    border: isDark ? '#2A2A2A' : '#E2E5EE',
-    text: isDark ? '#F2F2F2' : '#111111',
-    subText: isDark ? '#B3B3B3' : '#555555',
+      primaryDepth: '#0F172A',
+      primaryTop: isDark ? '#FFFFFF' : '#111827',
+      primaryText: isDark ? '#000000' : '#FFFFFF',
+    };
+  }, [isDark]);
 
-    easy: isDark ? '#58CC02' : '#20A779',
-    medium: isDark ? '#FFC800' : '#D97706',
-    hard: isDark ? '#FF4B4B' : '#DC2626',
-
-    optionBg: isDark ? '#1E1E1E' : '#FFFFFF',
-    optionText: isDark ? '#F2F2F2' : '#111111',
-    optionSelectedText: '#FFFFFF',
-
-    primaryBtnText: '#FFFFFF',
-  };
-
-  const difficultyColor = (d: Difficulty) => {
-    if (d === 'Easy') return colors.easy;
-    if (d === 'Medium') return colors.medium;
-    return colors.hard;
-  };
-
-  const [targetNote, setTargetNote] = useState<string>(() =>
-    randomChoice(NOTE_OPTIONS)
-  );
-  const [selectedNote, setSelectedNote] = useState<string | null>(null);
-  const [state, setState] = useState<GameState>('answering');
-  const [result, setResult] = useState<{
-    correct: boolean;
-    score: number;
-    feedback: string;
-  } | null>(null);
-
-  const [difficulty, setDifficulty] = useState<Difficulty>('Easy');
-  const [secondsLeft, setSecondsLeft] = useState<number>(
-    DIFFICULTY_SECONDS.Easy
-  );
-
-  const canSubmit = useMemo(
-    () => state === 'answering' && selectedNote !== null,
-    [state, selectedNote]
-  );
-
-  const startNewRound = () => {
-    setTargetNote(randomChoice(NOTE_OPTIONS));
-    setSelectedNote(null);
-    setResult(null);
-    setState('answering');
-    setSecondsLeft(DIFFICULTY_SECONDS[difficulty]);
-  };
-
-  useEffect(() => {
-    if (state === 'answering') {
-      setSecondsLeft(DIFFICULTY_SECONDS[difficulty]);
-    }
-  }, [difficulty, state]);
-
-  useEffect(() => {
-    if (state !== 'answering') return;
-
-    if (secondsLeft <= 0) {
-      setResult({
-        correct: false,
-        score: 0,
-        feedback: "Time's up!",
-      });
-      setState('result');
-      return;
-    }
-
-    const id = setInterval(() => {
-      setSecondsLeft((s) => s - 1);
-    }, 1000);
-
-    return () => clearInterval(id);
-  }, [state, secondsLeft]);
-
-  const onSubmit = async () => {
-    if (!canSubmit) return;
-
-    setState('submitting');
-    await new Promise((r) => setTimeout(r, 500));
-
-    const correct = selectedNote === targetNote;
-    setResult({
-      correct,
-      score: correct ? 100 : 40,
-      feedback: correct ? 'Nice! You got it.' : `Close — it was ${targetNote}.`,
-    });
-    setState('result');
-  };
-
-  const cardStyle = {
-    padding: 14,
-    borderWidth: 1,
-    borderRadius: 14,
-    backgroundColor: colors.cardBg,
-    borderColor: colors.border,
-  } as const;
+  const xpLabel = isGuest ? 'Locked' : profile ? `${profile.currentXp ?? 0}` : '—';
+  const levelLabel = isGuest ? 'Locked' : profile ? `${profile.level ?? 1}` : '—';
+  const streakLabel = isGuest ? 'Locked' : profile ? `${profile.streak ?? 0}d` : '—';
 
   return (
-    <ThemedView style={{ flex: 1, padding: 16, backgroundColor: colors.pageBg }}>
-      <ThemedText type="title" style={{ color: colors.text, marginBottom: 12 }}>
-        Pitch Exercise
-      </ThemedText>
-
-      <View style={cardStyle}>
-        <ThemedText type="subtitle" style={{ color: colors.text }}>
-          Listen and identify the pitch
-        </ThemedText>
-
-        {/* Difficulty selector */}
-        <View style={{ flexDirection: 'row', marginTop: 12 }}>
-          {(['Easy', 'Medium', 'Hard'] as Difficulty[]).map((d) => {
-            const active = difficulty === d;
-            const disabled = state !== 'answering';
-
-            return (
-              <Pressable
-                key={d}
-                onPress={() => setDifficulty(d)}
-                disabled={disabled}
-                style={{
-                  paddingVertical: 10,
-                  paddingHorizontal: 14,
-                  borderRadius: 12,
-                  borderWidth: 2,
-                  borderColor: active ? difficultyColor(d) : colors.border,
-                  backgroundColor: active ? difficultyColor(d) : colors.optionBg,
-                  marginRight: 8,
-                  opacity: disabled ? 0.6 : 1,
-                }}
-              >
-                <Text
-                  style={{
-                    fontWeight: '800',
-                    color: active ? '#FFFFFF' : colors.optionText,
-                  }}
-                >
-                  {d}
-                </Text>
-              </Pressable>
-            );
-          })}
+    <View style={[styles.screen, { backgroundColor: theme.bg }]}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
+      <SafeAreaView style={styles.safeArea}>
+        {/* Soft green glow */}
+        <View pointerEvents="none" style={styles.glowWrap}>
+          <View style={[styles.glow1, { backgroundColor: theme.accent }]} />
+          <View style={[styles.glow2, { backgroundColor: theme.accent }]} />
         </View>
 
-        <Text style={{ fontSize: 16, color: colors.text, marginTop: 12 }}>
-          Target note:{' '}
-          <Text style={{ fontWeight: '800' }}>{targetNote}</Text>
-        </Text>
+        <View style={styles.content}>
+          {/* Stats row */}
+          <View style={styles.statsRow}>
+            <StatChip icon={isGuest ? 'lock-closed' : 'flash'} label="XP" value={xpLabel} theme={theme} locked={isGuest} />
+            <StatChip icon={isGuest ? 'lock-closed' : 'ribbon'} label="Level" value={levelLabel} theme={theme} locked={isGuest} />
+            <StatChip icon={isGuest ? 'lock-closed' : 'flame'} label="Streak" value={streakLabel} theme={theme} locked={isGuest} />
+          </View>
 
-        <Text style={{ fontSize: 16, marginTop: 8 }}>
-          Time left:{' '}
-          <Text style={{ fontWeight: '900', color: difficultyColor(difficulty) }}>
-            {secondsLeft}s
-          </Text>
-        </Text>
+          {/* Main card */}
+          <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+              {/* Hero */}
+              <View style={styles.hero}>
+                <View style={[styles.iconRing, { borderColor: theme.border, backgroundColor: theme.softAccent }]}>
+                  <View style={[styles.iconTop, { backgroundColor: theme.accent }]}>
+                    <Ionicons name="musical-notes" size={30} color="#FFFFFF" />
+                  </View>
+                </View>
 
-        <Text style={{ color: colors.subText, marginTop: 10 }}>
-          Select the note you think it is:
-        </Text>
-
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 10 }}>
-          {NOTE_OPTIONS.map((note) => {
-            const isSelected = selectedNote === note;
-            const disabled = state !== 'answering';
-
-            return (
-              <Pressable
-                key={note}
-                disabled={disabled}
-                onPress={() => setSelectedNote(note)}
-                style={{
-                  paddingVertical: 12,
-                  paddingHorizontal: 16,
-                  borderRadius: 12,
-                  borderWidth: 2,
-                  borderColor: isSelected
-                    ? difficultyColor(difficulty)
-                    : colors.border,
-                  backgroundColor: isSelected
-                    ? difficultyColor(difficulty)
-                    : colors.optionBg,
-                  marginRight: 8,
-                  marginBottom: 8,
-                  opacity: disabled ? 0.5 : 1,
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: 16,
-                    fontWeight: '800',
-                    color: isSelected ? '#FFFFFF' : colors.optionText,
-                  }}
-                >
-                  {note}
+                <Text style={[styles.title, { color: theme.text }]}>Master your pitch</Text>
+                <Text style={[styles.subtitle, { color: theme.subText }]}>
+                  Listen to a note and tap the matching key. Short rounds, fast feedback.
                 </Text>
-              </Pressable>
-            );
-          })}
+              </View>
+
+              {/* Account (guest only) */}
+              {isGuest && (
+                <>
+                  <Text style={[styles.sectionLabel, { color: theme.subText }]}>ACCOUNT</Text>
+                  <View style={[styles.panel, { borderColor: theme.border, backgroundColor: theme.softPanel }]}>
+                    <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+                      <View style={[styles.panelIcon, { backgroundColor: theme.softAccent }]}>
+                        <Ionicons name="lock-closed" size={16} color={theme.accent} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.panelTitle, { color: theme.text }]}>Sign in to save progress</Text>
+                        <Text style={[styles.panelDesc, { color: theme.subText }]}>
+                          Guests can practice, but XP and Spotify are available only after login.
+                        </Text>
+                      </View>
+                    </View>
+
+                    <Pressable
+                      onPress={() => router.push('/login')}
+                      style={({ pressed }) => [
+                        styles.secondaryCta,
+                        { borderColor: theme.border, backgroundColor: theme.card },
+                        pressed && { opacity: 0.7 },
+                      ]}
+                    >
+                      <Ionicons name="log-in" size={16} color={theme.subText} />
+                      <Text style={[styles.secondaryCtaText, { color: theme.subText }]}>Go to login</Text>
+                    </Pressable>
+                  </View>
+                </>
+              )}
+
+              {/* Piano strip */}
+              <Text style={[styles.sectionLabel, { color: theme.subText }]}>KEYBOARD</Text>
+              <View style={[styles.pianoWrap, { borderColor: theme.border, backgroundColor: theme.softPanel }]}>
+                <PianoStrip theme={theme} />
+                <Text style={[styles.pianoHint, { color: theme.subText }]}>
+                  Practice on a clean piano layout (white + black keys).
+                </Text>
+              </View>
+
+              {/* Features */}
+              <Text style={[styles.sectionLabel, { color: theme.subText }]}>FEATURES</Text>
+              <View style={{ gap: 12 }}>
+                <FeatureRow icon="checkmark-circle" title="Instant feedback" desc="Earn XP for correct answers (sign-in required)." theme={theme} />
+                <FeatureRow icon="grid" title="Piano layout" desc="Keyboard UI that feels natural to use." theme={theme} />
+                <FeatureRow icon="musical-note" title="Spotify (coming soon)" desc="Connect to choose songs for training." theme={theme} />
+              </View>
+            </ScrollView>
+          </View>
         </View>
-      </View>
 
-      {/* Submit */}
-      <Pressable
-        onPress={onSubmit}
-        disabled={!canSubmit || state !== 'answering'}
-        style={({ pressed }) => ({
-          marginTop: 14,
-          paddingVertical: 14,
-          borderRadius: 14,
-          backgroundColor: canSubmit ? difficultyColor(difficulty) : 'transparent',
-          borderWidth: 1,
-          borderColor: canSubmit ? 'transparent' : colors.border,
-          alignItems: 'center',
-          opacity: pressed ? 0.85 : canSubmit ? 1 : 0.35,
-        })}
-      >
-        {state === 'submitting' ? (
-          <ActivityIndicator color={colors.primaryBtnText} />
-        ) : (
-          <Text style={{ fontSize: 16, fontWeight: '800', color: canSubmit ? '#FFFFFF' : colors.text }}>
-            Submit
-          </Text>
-        )}
-      </Pressable>
+        {/* CTA */}
+        <View style={styles.footer}>
+          <Pressable
+            onPress={() => router.push('/(pitch)/training')}
+            style={({ pressed }) => [
+              styles.primaryShadow,
+              { backgroundColor: theme.primaryDepth },
+              pressed && { transform: [{ translateY: 2 }] },
+            ]}
+          >
+            <View style={[styles.primaryBtn, { backgroundColor: theme.primaryTop }]}>
+              <Text style={[styles.primaryText, { color: theme.primaryText }]}>Start training</Text>
+            </View>
+          </Pressable>
 
-      {/* Result */}
-      <View style={[cardStyle, { marginTop: 14 }]}>
-        <ThemedText type="subtitle" style={{ color: colors.text }}>
-          Result
-        </ThemedText>
-
-        {!result ? (
-          <Text style={{ color: colors.subText }}>
-            Submit an answer to see feedback.
-          </Text>
-        ) : (
-          <>
-            <Text style={{ fontWeight: '900', color: colors.text, marginTop: 6 }}>
-              {result.correct ? '✅ Correct' : '❌ Incorrect'}
-            </Text>
-            <Text style={{ color: colors.text }}>Score: {result.score}</Text>
-            <Text style={{ color: colors.text }}>{result.feedback}</Text>
-
-            <Pressable
-              onPress={startNewRound}
-              style={({ pressed }) => ({
-                marginTop: 10,
-                paddingVertical: 12,
-                borderRadius: 14,
-                backgroundColor: difficultyColor(difficulty),
-                alignItems: 'center',
-                opacity: pressed ? 0.85 : 1,
-              })}
-            >
-              <Text style={{ fontWeight: '800', color: '#FFFFFF' }}>Next</Text>
-            </Pressable>
-          </>
-        )}
-      </View>
-    </ThemedView>
+          <Pressable
+            onPress={() => router.push({ pathname: '/(pitch)/training', params: { mode: 'demo' } })}
+            style={({ pressed }) => [
+              styles.secondaryBtn,
+              { borderColor: theme.border, backgroundColor: theme.card },
+              pressed && { opacity: 0.7 },
+            ]}
+          >
+            <Ionicons name="play-circle" size={18} color={theme.subText} />
+            <Text style={[styles.secondaryText, { color: theme.subText }]}>Quick demo</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    </View>
   );
 }
+
+function PianoStrip({ theme }: { theme: any }) {
+  const whiteCount = 7;
+  const blackKeys = [
+    { idx: 0, label: 'C#' },
+    { idx: 1, label: 'D#' },
+    { idx: 3, label: 'F#' },
+    { idx: 4, label: 'G#' },
+    { idx: 5, label: 'A#' },
+  ];
+
+  return (
+    <View style={styles.piano}>
+      <View style={styles.blackLayer} pointerEvents="none">
+        {blackKeys.map((k) => (
+          <View
+            key={k.label}
+            style={[
+              styles.blackKey,
+              {
+                left: `${(k.idx + 1) * (100 / whiteCount) - 6}%`,
+                backgroundColor: theme.blackKey,
+                borderColor: theme.blackKeyBorder,
+              },
+            ]}
+          />
+        ))}
+      </View>
+
+      <View style={styles.whiteRow}>
+        {Array.from({ length: whiteCount }).map((_, i) => (
+          <View
+            key={i}
+            style={[
+              styles.whiteKey,
+              { backgroundColor: theme.whiteKey, borderColor: theme.whiteKeyBorder },
+            ]}
+          />
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function StatChip({
+  icon,
+  label,
+  value,
+  theme,
+  locked,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  value: string;
+  theme: any;
+  locked?: boolean;
+}) {
+  return (
+    <View style={[styles.statChip, { backgroundColor: theme.card, borderColor: theme.border }]}>
+      <View style={[styles.statIcon, { backgroundColor: theme.softAccent }]}>
+        <Ionicons name={icon} size={16} color={theme.accent} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={[styles.statLabel, { color: theme.subText }]} numberOfLines={1}>
+          {label}
+        </Text>
+        <Text style={[styles.statValue, { color: locked ? theme.subText : theme.text }]} numberOfLines={1}>
+          {value}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+function FeatureRow({
+  icon,
+  title,
+  desc,
+  theme,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  title: string;
+  desc: string;
+  theme: any;
+}) {
+  return (
+    <View style={styles.featureRow}>
+      <View style={[styles.featureIcon, { backgroundColor: theme.softAccent }]}>
+        <Ionicons name={icon} size={16} color={theme.accent} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={[styles.featureTitle, { color: theme.text }]}>{title}</Text>
+        <Text style={[styles.featureDesc, { color: theme.subText }]}>{desc}</Text>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  screen: { flex: 1, paddingHorizontal: 16 },
+  safeArea: { flex: 1 },
+
+  glowWrap: { ...StyleSheet.absoluteFillObject, overflow: 'hidden' },
+  glow1: {
+    position: 'absolute',
+    width: 340,
+    height: 340,
+    borderRadius: 170,
+    top: -170,
+    left: -100,
+    opacity: 0.16,
+  },
+  glow2: {
+    position: 'absolute',
+    width: 280,
+    height: 280,
+    borderRadius: 140,
+    top: -150,
+    right: -120,
+    opacity: 0.10,
+  },
+
+  content: { flex: 1, paddingTop: 6, paddingBottom: 12 },
+
+  statsRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
+  statChip: {
+    flex: 1,
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 10,
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'center',
+  },
+  statIcon: { width: 34, height: 34, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  statLabel: { fontSize: 12, fontWeight: '700' },
+  statValue: { marginTop: 2, fontSize: 15, fontWeight: '900' },
+
+  card: { flex: 1, borderRadius: 24, borderWidth: 1, padding: 16 },
+  scrollContent: { paddingBottom: 6 },
+
+  hero: { alignItems: 'center', paddingTop: 2, paddingBottom: 8 },
+  iconRing: {
+    width: 86,
+    height: 86,
+    borderRadius: 24,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  iconTop: { width: 62, height: 62, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  title: { fontSize: 24, fontWeight: '900', letterSpacing: -0.4, textAlign: 'center' },
+  subtitle: { marginTop: 8, fontSize: 14, fontWeight: '700', textAlign: 'center', lineHeight: 20 },
+
+  sectionLabel: { marginTop: 14, marginBottom: 8, fontSize: 12, fontWeight: '900', letterSpacing: 1.0 },
+
+  panel: { borderRadius: 18, borderWidth: 1, padding: 12, gap: 10 },
+  panelIcon: { width: 34, height: 34, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  panelTitle: { fontSize: 14, fontWeight: '900' },
+  panelDesc: { marginTop: 2, fontSize: 12, fontWeight: '700', lineHeight: 16 },
+  secondaryCta: {
+    height: 42,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  secondaryCtaText: { fontSize: 13, fontWeight: '800' },
+
+  pianoWrap: { borderRadius: 18, borderWidth: 1, padding: 12 },
+  piano: { height: 64, justifyContent: 'flex-end' },
+  whiteRow: { flexDirection: 'row', gap: 6 },
+  whiteKey: { flex: 1, height: 46, borderRadius: 10, borderWidth: 1 },
+  blackLayer: { position: 'absolute', left: 0, right: 0, top: 0, height: 44 },
+  blackKey: { position: 'absolute', width: 24, height: 34, borderRadius: 8, borderWidth: 1 },
+  pianoHint: { marginTop: 10, fontSize: 12, fontWeight: '700' },
+
+  featureRow: { flexDirection: 'row', gap: 10, alignItems: 'center' },
+  featureIcon: { width: 34, height: 34, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  featureTitle: { fontSize: 14, fontWeight: '900' },
+  featureDesc: { marginTop: 2, fontSize: 12, fontWeight: '700', lineHeight: 16 },
+
+  footer: { paddingBottom: 18, gap: 10 },
+  primaryShadow: { borderRadius: 18, paddingBottom: 4 },
+  primaryBtn: { height: 56, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  primaryText: { fontSize: 16, fontWeight: '900', letterSpacing: 0.2 },
+
+  secondaryBtn: {
+    height: 46,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  secondaryText: { fontSize: 14, fontWeight: '800' },
+});
